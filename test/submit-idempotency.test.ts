@@ -123,10 +123,23 @@ describe('POST /v1/bulk-moves idempotency', () => {
     assert.equal(p.body.counts.pending, p.body.total);
   });
 
-  it('rejects a missing Idempotency-Key and same source/target stage with 400', async () => {
+  it('without an Idempotency-Key, identical requests (also concurrent) still create only one job', async () => {
+    const body = { targetStageId: stages[8], filter: { stageId: stages[9], status: 'open' } };
+    const post = () => request(app.getHttpServer()).post('/v1/bulk-moves').set('X-Workspace-Id', WS_A).send(body);
+    const before = await jobsFor(WS_A);
+    const responses = await Promise.all(Array.from({ length: 5 }, post));
+    assert.deepEqual(responses.map((r) => r.status).sort(), [200, 200, 200, 200, 202]);
+    assert.equal(new Set(responses.map((r) => r.body.jobId)).size, 1);
+    const later = await post().expect(200);
+    assert.equal(later.body.jobId, responses[0]!.body.jobId);
+    assert.equal(await jobsFor(WS_A), before + 1);
+  });
+
+  it('rejects an empty Idempotency-Key and the same source/target stage with 400', async () => {
     await request(app.getHttpServer())
       .post('/v1/bulk-moves')
       .set('X-Workspace-Id', WS_A)
+      .set('Idempotency-Key', '')
       .send({ targetStageId: stages[1], filter: {} })
       .expect(400);
     await submit('key-same-stage', { targetStageId: stages[1], filter: { stageId: stages[1] } }).expect(400);

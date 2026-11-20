@@ -48,9 +48,15 @@ export class BulkMovesController {
       'Freezes the matching set (max 50,000) at submit time and queues a background job.\n\n' +
       '**Idempotency:** the first request returns 202. Retrying with the same Idempotency-Key and the same body ' +
       'returns 200 with the same jobId, including when duplicates arrive concurrently. It never returns 409. ' +
-      'The same key with a different body returns 422.',
+      'The same key with a different body returns 422.\n\n' +
+      '**Without a key**, an identical request in the same workspace is still deduplicated while the earlier job is ' +
+      'queued/processing or was created in the last 10 minutes (200 with that job).',
   })
-  @ApiHeader({ name: 'Idempotency-Key', required: true, description: '1-200 chars, unique per intended operation (e.g. a UUID).' })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description: 'Recommended. 1-200 chars, unique per intended operation (e.g. a UUID). Without it, identical requests are deduplicated by body.',
+  })
   @ApiAcceptedResponse({ type: SubmitBulkMoveResponseDto, description: 'Job created.' })
   @ApiOkResponse({ type: SubmitBulkMoveResponseDto, description: 'Replay of an already-accepted request: same jobId.' })
   @ApiNotFoundResponse({ description: 'Target stage not in this workspace.' })
@@ -61,8 +67,8 @@ export class BulkMovesController {
     @Body() body: SubmitBulkMoveDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<SubmitBulkMoveResponseDto> {
-    if (!key || key.length > 200) {
-      throw new BadRequestException('Idempotency-Key header is required (1-200 characters)');
+    if (key !== undefined && (key.length === 0 || key.length > 200)) {
+      throw new BadRequestException('Idempotency-Key must be 1-200 characters');
     }
     const result = await submitBulkMove(this.pool, workspaceId, key, body);
     const progressUrl = `/v1/bulk-moves/${result.jobId}`;

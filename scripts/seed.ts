@@ -21,6 +21,15 @@ const STAGE_NAMES = [
   'Negotiation', 'Contract Sent', 'Verbal Commit', 'Closed Won', 'Closed Lost', 'On Hold',
 ];
 
+/**
+ * Deterministic stage id: md5 of (workspace, position), with the version/variant bits set
+ * so it is a valid RFC 4122 v4-format UUID that strict validators accept.
+ */
+function stageIdSql(workspaceExpr: string, positionExpr: string): string {
+  const h = `md5(${workspaceExpr} || ':' || ${positionExpr})`;
+  return `(substr(${h}, 1, 12) || '4' || substr(${h}, 14, 3) || '8' || substr(${h}, 18, 15))::uuid`;
+}
+
 async function seedWorkspace(pool: Pool, id: string, name: string, count: number): Promise<boolean> {
   const client = await pool.connect();
   try {
@@ -36,7 +45,7 @@ async function seedWorkspace(pool: Pool, id: string, name: string, count: number
     // Stage ids are derived from (workspace, position) so they are stable across re-seeds.
     await client.query(
       `INSERT INTO stages (id, workspace_id, name, position)
-       SELECT md5($1::text || ':' || (ord - 1))::uuid, $1::uuid, n, ord - 1
+       SELECT ${stageIdSql('$1::text', '(ord - 1)')}, $1::uuid, n, ord - 1
        FROM unnest($2::text[]) WITH ORDINALITY AS t(n, ord)`,
       [id, STAGE_NAMES],
     );
@@ -46,7 +55,7 @@ async function seedWorkspace(pool: Pool, id: string, name: string, count: number
       `INSERT INTO opportunities
          (workspace_id, stage_id, name, value_cents, status, owner_id, created_at, updated_at)
        SELECT $1::uuid,
-              md5($1::text || ':' || stage_pos)::uuid,
+              ${stageIdSql('$1::text', 'stage_pos')},
               'Deal #' || g,
               10000 + floor(power(random(), 3) * 5000000)::bigint,
               CASE WHEN r < 0.80 THEN 'open' WHEN r < 0.88 THEN 'won'

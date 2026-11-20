@@ -8,6 +8,14 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { STATUS_CODES } from 'node:http';
+import { DomainError, type DomainErrorKind } from '../engine/errors.js';
+
+const DOMAIN_STATUS: Record<DomainErrorKind, number> = {
+  not_found: 404,
+  invalid: 400,
+  unprocessable: 422,
+  busy: 503,
+};
 
 interface ErrorBody {
   statusCode: number;
@@ -28,7 +36,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
-    if (exception instanceof HttpException) {
+    if (exception instanceof DomainError) {
+      status = DOMAIN_STATUS[exception.kind];
+      message = exception.message;
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const payload = exception.getResponse();
       message =

@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import { DatabaseModule } from './database.module.js';
 import { HealthController } from './health.controller.js';
+import { OpportunitiesController } from './opportunities/opportunities.controller.js';
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { HealthController } from './health.controller.js';
     }),
     DatabaseModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, OpportunitiesController],
 })
 export class AppModule {}

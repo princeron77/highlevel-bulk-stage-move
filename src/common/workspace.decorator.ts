@@ -10,7 +10,7 @@ import { isUUID } from 'class-validator';
 export const WorkspaceId = createParamDecorator((_: unknown, ctx: ExecutionContext): string => {
   const request = ctx.switchToHttp().getRequest<Request>();
   const value = request.header('x-workspace-id');
-  if (!value || !isUUID(value)) {
+  if (!value || !isUUID(value, '4')) {
     throw new BadRequestException('X-Workspace-Id header must be a UUID');
   }
   return value.toLowerCase();

@@ -1,7 +1,0 @@
-# Overrides for a public VM: API on port 80, Postgres not published.
-services:
-  postgres:
-    ports: !reset []
-  api:
-    ports: !override
-      - "80:3000"

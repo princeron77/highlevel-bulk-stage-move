@@ -140,12 +140,10 @@ All endpoints take `X-Workspace-Id: <uuid>` (tenant scope; not authentication).
 
 ## What is not implemented
 
-- **Out of scope per the brief:** auth, UI, board or summary views, rollups, events, CI/K8s,
+- **Out of scope per the brief:** auth, UI, board or summary views, rollups, events, deployment, CI/K8s,
   custom fields.
 - **Not built, but described in DESIGN.md §7:** cancel, outbox events, poison-row isolation,
   an asynchronous snapshot for very large moves, and a global (cross-tenant) write budget.
-- **Deployment.** Out of scope in the brief, but the recruiter asked for a link, so
-  [deploy/README.md](deploy/README.md) runs the same compose file on one small VM.
 
 ## Assumptions
 

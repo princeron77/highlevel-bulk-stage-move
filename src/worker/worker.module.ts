@@ -26,7 +26,6 @@ export class WorkerRunner implements OnApplicationBootstrap, OnApplicationShutdo
   onApplicationBootstrap(): void {
     const id = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
     const log = {
-      log: (m: string, c?: object) => this.logger.log({ ...c, workerId: id }, m),
       warn: (m: string, c?: object) => this.logger.warn({ ...c, workerId: id }, m),
       error: (m: string, c?: object) => this.logger.error({ ...c, workerId: id }, m),
     };

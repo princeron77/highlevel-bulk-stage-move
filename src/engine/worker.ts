@@ -20,8 +20,8 @@ export interface Claim {
   attempts: number;
 }
 
+/** Minimal logger the engine needs, so it stays independent of Nest/pino (and testable). */
 export interface WorkerLogger {
-  log(message: string, context?: object): void;
   warn(message: string, context?: object): void;
   error(message: string, context?: object): void;
 }
@@ -114,6 +114,10 @@ export class BulkWorker {
     }
   }
 
+  /**
+   * Runs chunks until the slice deadline, then hands the job back. Every exit path ends with the
+   * lease released or the job finished/failed; a thrown error is recorded as a retry or failure.
+   */
   private async runSlice(claim: Claim, signal?: AbortSignal): Promise<void> {
     const deadline = Date.now() + this.cfg.sliceMs;
     const heartbeat = setInterval(() => void this.heartbeat(claim), this.cfg.heartbeatMs);
@@ -159,6 +163,8 @@ export class BulkWorker {
             `UPDATE bulk_jobs
              SET cursor = $3, moved = moved + $4, skipped_conflict = skipped_conflict + $5,
                  skipped_noop = skipped_noop + $6, last_progress_at = now(), heartbeat_at = now(),
+                 -- attempts counts CONSECUTIVE failures: a committed chunk proves the job can
+                 -- progress, so a later, unrelated hiccup starts from a fresh retry budget
                  attempts = 0, throttled_until = NULL,
                  status = CASE WHEN $7 THEN 'completed' ELSE status END,
                  finished_at = CASE WHEN $7 THEN now() END,

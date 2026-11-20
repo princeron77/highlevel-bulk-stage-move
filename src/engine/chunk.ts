@@ -121,23 +121,28 @@ export async function applyChunk(
  * Per-workspace token bucket, refilled by elapsed time, stored on the workspace row.
  * Returns 0 if `n` tokens were taken, otherwise how many ms until they would be available.
  * Runs inside the chunk transaction, so tokens are only spent if the chunk commits.
+ *
+ * A chunk may need more tokens than the bucket can ever hold (burst < chunk size, e.g. a tenant
+ * on a very low limit). Waiting for `n` would then throttle the job forever, so the chunk is
+ * allowed once the bucket is full and the balance goes negative: the next chunks wait longer,
+ * and the long-run rate is still exactly bulk_rate_per_sec.
  */
 export async function takeTokens(client: Client, workspaceId: string, n: number): Promise<number> {
-  const { rows } = await client.query<{ available: number; rate: number; taken: boolean }>(
+  const { rows } = await client.query<{ available: number; rate: number; need: number; taken: boolean }>(
     `WITH b AS (
        SELECT least(bulk_burst, bulk_tokens + extract(epoch FROM now() - bulk_tokens_at) * bulk_rate_per_sec) AS available,
-              bulk_rate_per_sec AS rate
+              bulk_rate_per_sec AS rate, least($2, bulk_burst) AS need
        FROM workspaces WHERE id = $1 FOR UPDATE
      ), upd AS (
        UPDATE workspaces w SET bulk_tokens = b.available - $2, bulk_tokens_at = now()
-       FROM b WHERE w.id = $1 AND b.available >= $2
+       FROM b WHERE w.id = $1 AND b.available >= b.need
        RETURNING 1
      )
-     SELECT b.available, b.rate, EXISTS (SELECT 1 FROM upd) AS taken FROM b`,
+     SELECT b.available, b.rate, b.need, EXISTS (SELECT 1 FROM upd) AS taken FROM b`,
     [workspaceId, n],
   );
   const bucket = rows[0];
   if (!bucket) throw new Error(`Workspace ${workspaceId} not found`);
   if (bucket.taken) return 0;
-  return Math.ceil(((n - bucket.available) / bucket.rate) * 1000);
+  return Math.max(1, Math.ceil(((bucket.need - bucket.available) / bucket.rate) * 1000));
 }

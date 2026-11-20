@@ -128,6 +128,18 @@ describe('bulk worker', () => {
     await verifyJob(db, big.jobId);
   });
 
+  it('rate limit: a burst smaller than a chunk does not throttle the job forever', async () => {
+    await db.pool.query('UPDATE workspaces SET bulk_rate_per_sec = 20000, bulk_burst = 30, bulk_tokens = 30 WHERE id = $1', [WS_B]);
+    // status 'lost' is never changed by other tests, so this always selects real rows
+    const { jobId } = await submitBulkMove(db.pool, WS_B, 'w-tiny-burst', { targetStageId: stagesB[4]!, filter: { status: 'lost' } });
+    const { rows } = await db.pool.query<{ total: number }>('SELECT total FROM bulk_jobs WHERE id = $1', [jobId]);
+    assert.ok(rows[0]!.total > 200, 'needs several chunks, each larger than the burst');
+    assert.equal(await drain(worker(db, 'w1', { chunkSize: 100 }), db, jobId, 2000), 'completed');
+    await verifyJob(db, jobId);
+    // restore the default bucket, full, so later tests in this workspace are not throttled
+    await db.pool.query('UPDATE workspaces SET bulk_rate_per_sec = 2000, bulk_burst = 4000, bulk_tokens = 4000, bulk_tokens_at = now() WHERE id = $1', [WS_B]);
+  });
+
   it('retry: a transient error (40001) backs off and the job still completes', async () => {
     const { jobId } = await submitBulkMove(db.pool, WS_B, 'w-transient', { targetStageId: stagesB[6]!, filter: { stageId: stagesB[0]! } });
     let failures = 1;

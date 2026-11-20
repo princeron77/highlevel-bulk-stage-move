@@ -1,3 +1,4 @@
+/** Provides the API's pg Pool to every controller and closes it on shutdown (SIGTERM). */
 import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { dbConfig } from '../config.js';
 import { createPool, type Pool } from '../db/pool.js';

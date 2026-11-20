@@ -31,7 +31,7 @@ docker compose up --build
 
 This starts Postgres, runs the migrations, seeds **5 small workspaces** (3,000 deals each),
 starts the **API** on `:3000` and **2 workers**, and **runs the whole test suite once**. Look for
-`test-1 | ℹ pass 23` in the output. The test container then exits; the rest of the stack keeps running.
+`test-1 | ℹ pass 39` in the output. The test container then exits; the rest of the stack keeps running.
 
 - Swagger UI: <http://localhost:3000/docs>
 - Health: <http://localhost:3000/health>
@@ -52,7 +52,8 @@ The tests run against a real Postgres. Each test file creates and drops its own 
 | `test/submit-idempotency.test.ts` | Replay → same job, `200`. 10 concurrent duplicates → 1 job. Different body → `422`. **No key: identical requests (also concurrent) → 1 job.** >50k → `422` with nothing written. Dedupe survives a restart. Tenant scoping. |
 | `test/worker.test.ts` | **Kill and resume** (a real worker process exits mid-job holding its lease). **Collision** (a manual edit wins). **Fencing** (a zombie worker can't write). **Isolation** (workspace B finishes while A's big job runs). **Database connection killed mid-chunk** → rollback and retry, then completion. Transient retry. Permanent failure, then a manual resume that completes. |
 | `test/filters.test.ts` | 16 filter combinations (each field alone and combined, an empty match). The snapshot equals an independent re-implementation of the filter. |
-| `test/opportunities.http.test.ts` | Part 1: create, manual move with transition, keyset paging, tenant scoping, error shape. |
+| `test/opportunities.http.test.ts` | Part 1: create, manual move with transition, keyset paging, tenant scoping, error shape, a forged cursor is a 400. |
+| `test/unit.test.ts` | Pure functions: the collision rule, health states, request hashing, backoff, transient vs permanent errors. |
 
 The safety tests were checked by deleting each mechanism. Removing the fence, the `stage_rev`
 check or the request-hash check turns the matching test red.
@@ -107,6 +108,8 @@ and the test that proves it.
 | **…a job exceeds the 50,000 limit?** | `422` before anything is written (counted with `LIMIT 50001`, re-checked on the snapshot itself). | `submit-idempotency.test.ts` |
 | **…a queue loses a job?** | There is no separate queue to lose it: the job row *is* the queue. It commits in the same transaction as the `202` response's data, and claiming is a query, not a message. A job whose worker vanished has an expired lease and is reclaimed; one with no progress shows `health: stalled`. | kill and resume; progress `health` |
 | **…many customers submit large jobs at once?** | Round-robin time slices (2 s) across workspaces, plus a per-workspace token bucket. No job can hold a worker while another workspace waits. Interactive latency stays at baseline. | `worker.test.ts`: isolation; BENCHMARKS.md §2 |
+| **…the input is adversarial?** | Unknown fields, non-UUID ids, absurd numbers, bad dates and forged pagination cursors are rejected with `400` before any SQL runs. All values are bound parameters, never concatenated. A tenant can never address another tenant's rows (composite foreign keys plus `workspace_id` in every query). | `opportunities.http.test.ts`, `submit-idempotency.test.ts` |
+| **…a tenant's rate limit is smaller than one chunk?** | The token bucket lets a chunk through once the bucket is full and carries the balance as debt, so the job slows down but never stalls. | `worker.test.ts`: rate limit |
 | **…is the job genuinely complete?** | `completed` is set only when `cursor = total`, in the same fenced transaction as the last chunk. A CHECK guarantees `moved + skipped_conflict + skipped_noop = cursor`, and every item has an outcome. **`percent` is never 100 before that.** | verify SQL in every worker test and benchmark |
 
 ## Endpoints

@@ -1,3 +1,8 @@
+/**
+ * Request/response shapes for Part 1. class-validator rules run in the global ValidationPipe
+ * (whitelist + forbidNonWhitelisted, so unknown fields are a 400), and the same decorators
+ * generate the Swagger docs at /docs.
+ */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator';

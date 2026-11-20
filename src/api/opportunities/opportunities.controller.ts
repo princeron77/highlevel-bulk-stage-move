@@ -1,3 +1,8 @@
+/**
+ * Part 1 HTTP surface: create, manual stage move, list a stage, list stages.
+ * Controllers stay thin: validate the input (DTOs), take the tenant from the header, and call
+ * the engine. All logic and SQL live in src/engine so they can be tested without HTTP.
+ */
 import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,

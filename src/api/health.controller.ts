@@ -1,3 +1,4 @@
+/** Liveness + database check, used by the Docker healthcheck and handy for a quick smoke test. */
 import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Pool } from '../db/pool.js';

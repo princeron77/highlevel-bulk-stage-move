@@ -1,3 +1,7 @@
+/**
+ * Root module of the API process: structured request logging (pino, with a request id that
+ * also appears in every error response), the Postgres pool, and the controllers.
+ */
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';

@@ -149,7 +149,9 @@ Four implemented mechanisms, each with a test or a benchmark:
    A's big job is still processing.*
 3. **Per-workspace token bucket** (2,000 rows/s, burst 4,000). It lives on the workspace row and
    is taken inside the chunk transaction, so it holds across all workers and restarts, and tokens
-   are only spent if the chunk commits. A throttled job yields its worker.
+   are only spent if the chunk commits. A throttled job yields its worker. If a tenant's burst is
+   smaller than one chunk, the chunk goes through once the bucket is full and the balance goes
+   negative, so the long-run rate holds and the job never stalls.
 4. **Short, bounded transactions.** 500-row chunks, `lock_timeout` 2 s, `statement_timeout`
    10 s. The worker has its own 4-connection pool, so it can never take the API's connections.
 

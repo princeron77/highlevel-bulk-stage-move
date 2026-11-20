@@ -1,3 +1,9 @@
+/**
+ * Part 2 HTTP surface: submit a bulk move, read its progress and per-item outcomes, resume a
+ * failed job. Submit returns immediately; the work happens in the worker processes.
+ * Status codes are deliberate: 202 new job, 200 replay (never 409), 422 key reused with a
+ * different body or more than 50,000 matches.
+ */
 import {
   BadRequestException,
   Body,

@@ -144,6 +144,27 @@ describe('bulk worker', () => {
     await verifyJob(db, jobId);
   });
 
+  it('retry: the database connection is killed mid-chunk; the chunk rolls back and the job still completes', async () => {
+    const { jobId } = await submitBulkMove(db.pool, WS_B, 'w-conn-drop', { targetStageId: stagesB[5]!, filter: { stageId: stagesB[2]! } });
+    let killed = false;
+    const w = worker(db, 'conn-drop', {}, {
+      beforeChunk: async (_claim, fromSeq) => {
+        if (killed || fromSeq < 100) return;
+        killed = true;
+        // A real connection drop: terminate the backend that holds this open chunk transaction.
+        await db.pool.query(
+          `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+           WHERE datname = current_database() AND state = 'idle in transaction' AND pid <> pg_backend_pid()`,
+        );
+      },
+    });
+    assert.equal(await drain(w, db, jobId), 'completed');
+    assert.ok(killed, 'the connection was really terminated');
+    const job = await db.pool.query('SELECT attempts, last_error FROM bulk_jobs WHERE id = $1', [jobId]);
+    assert.match(job.rows[0].last_error, /terminat|connection/i, 'the drop was seen and retried');
+    await verifyJob(db, jobId);
+  });
+
   it('retry: a permanent error fails the job with a reason instead of retrying forever', async () => {
     const { jobId } = await submitBulkMove(db.pool, WS_B, 'w-permanent', { targetStageId: stagesB[7]!, filter: { stageId: stagesB[1]! } });
     const w = worker(db, 'broken', {}, { beforeChunk: () => { throw new Error('bug: invariant violated'); } });

@@ -25,7 +25,7 @@ import { workerConfig } from '../../config.js';
 import type { Pool } from '../../db/pool.js';
 import { PG_POOL } from '../../common/tokens.js';
 import { WorkspaceId } from '../../common/workspace.decorator.js';
-import { getProgress, listItems, type JobProgress } from '../../engine/progress.js';
+import { getProgress, listItems, retryFailedJob, type JobProgress } from '../../engine/progress.js';
 import { submitBulkMove } from '../../engine/submit.js';
 import { ItemsQueryDto, JobProgressDto, SubmitBulkMoveDto, SubmitBulkMoveResponseDto } from './bulk-moves.dto.js';
 
@@ -78,6 +78,28 @@ export class BulkMovesController {
     @WorkspaceId() workspaceId: string,
     @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
   ): Promise<JobProgress> {
+    return getProgress(this.pool, workspaceId, jobId, this.leaseMs);
+  }
+
+  @Post(':jobId/retry')
+  @ApiOperation({
+    summary: 'Resume a failed job from its committed progress',
+    description:
+      'Re-queues a failed job; it continues from its cursor, so nothing already applied is redone. ' +
+      'Returns 202 when re-queued, 200 when the job is already queued/processing (safe to call twice), ' +
+      '422 when it already completed.',
+  })
+  @ApiAcceptedResponse({ description: 'Re-queued.' })
+  @ApiOkResponse({ description: 'Already queued or processing; nothing changed.' })
+  @ApiNotFoundResponse({ description: 'No such job in this workspace.' })
+  @ApiUnprocessableEntityResponse({ description: 'Job already completed.' })
+  async retry(
+    @WorkspaceId() workspaceId: string,
+    @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<JobProgress> {
+    const result = await retryFailedJob(this.pool, workspaceId, jobId);
+    res.status(result === 'requeued' ? 202 : 200);
     return getProgress(this.pool, workspaceId, jobId, this.leaseMs);
   }
 

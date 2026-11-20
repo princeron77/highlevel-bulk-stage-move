@@ -9,7 +9,7 @@ import { workerConfig, type WorkerConfig } from '../src/config.js';
 import { BulkWorker, type WorkerHooks } from '../src/engine/worker.js';
 import { submitBulkMove } from '../src/engine/submit.js';
 import { moveOpportunity } from '../src/engine/opportunities.js';
-import { getProgress } from '../src/engine/progress.js';
+import { getProgress, retryFailedJob } from '../src/engine/progress.js';
 import { createTestDb, stageIds, WS_A, WS_B, type TestDb } from './helpers.js';
 
 const silent = { log() {}, warn() {}, error() {} };
@@ -151,9 +151,11 @@ describe('bulk worker', () => {
     const job = await getProgress(db.pool, WS_B, jobId, 15000);
     assert.equal(job.health, 'failed');
     assert.match(job.failureReason!, /permanent error/);
-    // the workspace is free again: a new job there can run
-    const next = await submitBulkMove(db.pool, WS_B, 'w-after-fail', { targetStageId: stagesB[7]!, filter: { stageId: stagesB[1]! } });
-    assert.equal(await drain(worker(db, 'w1'), db, next.jobId), 'completed');
+    // After the cause is fixed, the failed job can be resumed and finishes correctly.
+    assert.equal(await retryFailedJob(db.pool, WS_B, jobId), 'requeued');
+    assert.equal(await retryFailedJob(db.pool, WS_B, jobId), 'already_active', 'retrying the retry is a no-op');
+    assert.equal(await drain(worker(db, 'w1'), db, jobId), 'completed');
+    await verifyJob(db, jobId);
   });
 
   it('kill and resume: SIGKILL-style exit mid-job, then another worker finishes it correctly', async () => {

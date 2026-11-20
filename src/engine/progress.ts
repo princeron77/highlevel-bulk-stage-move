@@ -3,7 +3,7 @@
  * restart can never make the numbers lie.
  */
 import type { Pool } from '../db/pool.js';
-import { notFound } from './errors.js';
+import { DomainError, notFound } from './errors.js';
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -157,4 +157,30 @@ export async function listItems(
     data: page.map((r) => ({ seq: r.seq, opportunityId: r.opportunity_id, snapshotStageId: r.snapshot_stage_id, outcome: r.outcome })),
     nextAfterSeq: hasMore ? page.at(-1)!.seq : null,
   };
+}
+
+export type RetryResult = 'requeued' | 'already_active';
+
+/**
+ * Manual resume of a FAILED job (e.g. after fixing the cause). It continues from its committed
+ * cursor: nothing already applied is redone. Calling it on a queued/processing job is a
+ * harmless no-op, so a client can safely retry this call too.
+ */
+export async function retryFailedJob(pool: Pool, workspaceId: string, jobId: string): Promise<RetryResult> {
+  const requeued = await pool.query(
+    `UPDATE bulk_jobs
+     SET status = 'queued', attempts = 0, failure_reason = NULL, finished_at = NULL,
+         next_attempt_at = now(), last_slice_at = NULL, lease_owner = NULL, lease_expires_at = NULL
+     WHERE workspace_id = $1 AND id = $2 AND status = 'failed'`,
+    [workspaceId, jobId],
+  );
+  if (requeued.rowCount === 1) return 'requeued';
+  const { rows } = await pool.query<{ status: JobStatus }>(
+    'SELECT status FROM bulk_jobs WHERE workspace_id = $1 AND id = $2',
+    [workspaceId, jobId],
+  );
+  const status = rows[0]?.status;
+  if (!status) throw notFound('Bulk move job');
+  if (status === 'completed') throw new DomainError('unprocessable', 'Job already completed; nothing to retry');
+  return 'already_active';
 }

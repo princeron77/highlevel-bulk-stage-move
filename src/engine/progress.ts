@@ -69,8 +69,9 @@ export function computeHealth(row: JobRow, leaseMs: number): JobHealth {
   if (row.status === 'completed') return 'done';
   if (row.status === 'failed') return 'failed';
   if (row.status === 'queued') return 'queued';
-  if (row.lease_live) return row.throttled ? 'throttled' : 'running';
   if (row.retry_pending) return 'retrying';
+  if (row.throttled) return 'throttled';
+  if (row.lease_live) return 'running';
   return row.quiet_ms > 2 * leaseMs ? 'stalled' : 'waiting';
 }
 

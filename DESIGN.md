@@ -55,8 +55,10 @@ the pause: `running`, `throttled` (rate limit), `waiting` (between slices), `ret
 
 ## 2. Idempotency model
 
-- **Key:** the `Idempotency-Key` header (required), scoped per workspace:
-  `PRIMARY KEY (workspace_id, key)`.
+- **Key:** the `Idempotency-Key` header, scoped per workspace: `PRIMARY KEY (workspace_id, key)`.
+  **Without a header**, the canonical request hash is the key: an identical request in the same
+  workspace returns the existing job while it is queued or processing, or was created in the last
+  10 minutes. A transaction-scoped advisory lock on (workspace, hash) serialises concurrent ones.
 - **Stored:** in Postgres (`idempotency_keys`), in the same transaction as the job and its
   snapshot. It survives restarts, and the key, the job and the snapshot either all exist or none do.
 - **How duplicates are handled:**
@@ -74,10 +76,9 @@ the pause: `running`, `throttled` (rate limit), `waiting` (between slices), `ret
   - `stage_rev` makes a double move impossible: a moved row has a new `stage_rev`, so a second
     attempt on it classifies as a conflict, not a move.
 - **Where a retry can still slip through:**
-  - **A client that sends the same intent with a *new* key** gets a second job. It cannot
-    double-apply: every row the first job moved is now `skipped_noop` or `skipped_conflict`. But
-    the user sees two jobs. Deriving a key from the body hash when the header is missing would
-    narrow this; I chose to require the key instead.
+  - **A client that sends the same intent with a *new* key** (or without a key, after the
+    10-minute window) gets a second job. It cannot double-apply: every row the first job moved is
+    now `skipped_noop` or `skipped_conflict`. But the user sees two jobs.
   - **Keys never expire.** That is correct but grows forever. A TTL would re-open the "new job"
     case above after expiry.
 
@@ -104,6 +105,11 @@ worst outcome for a CRM user. Every skipped row is listed at
 
 There is no deadlock risk. Manual moves lock a single row, and only one job per workspace runs
 at a time, locking in a consistent order.
+
+**Two bulk jobs over the same records** run one after the other (one processing job per
+workspace). The second snapshot recorded each row's `stage_rev` at its own submit time, so rows
+the first job moved are `skipped_conflict` in the second. The earlier request wins, and the later
+one reports exactly what it didn't do instead of silently reverting it.
 
 ## 4. Snapshot vs live filter set
 
@@ -185,4 +191,4 @@ key and the job.
    `failed_item` and continue, instead of failing the whole job.
 6. **Metrics:** rows/s per workspace, queue age, lease takeovers, throttled time, and an alert on
    `stalled`.
-7. Derived idempotency key when the header is missing, with a short TTL.
+7. Expire idempotency keys after a retention period (e.g. 7 days) with a nightly cleanup.

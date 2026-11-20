@@ -59,7 +59,8 @@ The filter fields are all optional and combined with AND: `stageId`, `ownerId`, 
 | Same key, same body (a retry, also when concurrent) | `200`, same `jobId`, `"replayed": true` |
 | Same key, different body | `422` |
 | More than 50,000 matches | `422`; nothing is written |
-| Missing `Idempotency-Key` | `400` |
+| No `Idempotency-Key`, identical body while the earlier job is active or <10 min old | `200`, same `jobId` |
+| Empty or >200-char `Idempotency-Key` | `400` |
 | Target stage not in this workspace | `404` |
 
 ## Progress

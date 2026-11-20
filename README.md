@@ -48,8 +48,9 @@ The tests run against a real Postgres. Each test file creates and drops its own 
 
 | Test file | What it proves |
 |---|---|
-| `test/submit-idempotency.test.ts` | Replay → same job, `200`. 10 concurrent duplicates → 1 job. Different body → `422`. >50k → `422` with nothing written. Dedupe survives a restart. Tenant scoping. |
-| `test/worker.test.ts` | **Kill and resume** (a real worker process exits mid-job holding its lease). **Collision** (a manual edit wins). **Fencing** (a zombie worker can't write). **Isolation** (workspace B finishes while A's big job runs). Transient retry. Permanent failure, then a manual resume that completes. |
+| `test/submit-idempotency.test.ts` | Replay → same job, `200`. 10 concurrent duplicates → 1 job. Different body → `422`. **No key: identical requests (also concurrent) → 1 job.** >50k → `422` with nothing written. Dedupe survives a restart. Tenant scoping. |
+| `test/worker.test.ts` | **Kill and resume** (a real worker process exits mid-job holding its lease). **Collision** (a manual edit wins). **Fencing** (a zombie worker can't write). **Isolation** (workspace B finishes while A's big job runs). **Database connection killed mid-chunk** → rollback and retry, then completion. Transient retry. Permanent failure, then a manual resume that completes. |
+| `test/filters.test.ts` | 16 filter combinations (each field alone and combined, an empty match). The snapshot equals an independent re-implementation of the filter. |
 | `test/opportunities.http.test.ts` | Part 1: create, manual move with transition, keyset paging, tenant scoping, error shape. |
 
 The safety tests were checked by deleting each mechanism. Removing the fence, the `stage_rev`
@@ -87,6 +88,26 @@ curl -s localhost:3000/v1/bulk-moves/<jobId> -H "X-Workspace-Id: $WS" # progress
 `scripts/demo/` has the same flows as small scripts: submit, replay, conflict, kill a worker,
 fairness, and verify.
 
+## Edge cases: what happens if…
+
+These are the questions from HighLevel's preparation pointers. Each answer names the mechanism
+and the test that proves it.
+
+| What happens if… | Answer | Proof |
+|---|---|---|
+| **…the same API request is submitted multiple times?** | Same `Idempotency-Key` + same body → `200` with the original job, **never 409**, including concurrent duplicates (the key row is the lock). No key → identical requests are deduplicated by body hash. Same key + different body → `422`. | `submit-idempotency.test.ts` (10 concurrent → 1 job; 5 concurrent keyless → 1 job; survives an API restart) |
+| **…the client never got the response and retries?** | Same as above. The key, job and snapshot commit in one transaction, so a retry either finds all of them or none. | same |
+| **…two workers pick up conflicting jobs?** | `FOR UPDATE SKIP LOCKED` means one claim per job. A partial unique index allows **one processing job per workspace**, so two jobs never touch one tenant's rows at once. A worker whose lease was taken over is **fenced** (`lease_version`) and cannot write. | `worker.test.ts`: fencing, isolation |
+| **…two jobs target the same records?** | They run one after the other. The second job's snapshot remembers each row's `stage_rev`; rows the first job moved count as `skipped_conflict`, so the later job never silently undoes the earlier one. | collision rule, `chunk.ts` `classify()` |
+| **…a user edits a record the job is about to move?** | The manual edit wins. The job sees a changed `stage_rev` and records `skipped_conflict` (listed at `/items?outcome=skipped_conflict`). | `worker.test.ts`: collision; benchmark had 19–29 real collisions under load |
+| **…a worker crashes halfway?** | The open chunk rolls back. The cursor was committed with the last finished chunk. The lease expires and any worker resumes from the cursor: no row is skipped or applied twice. | `worker.test.ts`: kill and resume (a real process exits holding its lease); `bench --kill` |
+| **…the database connection drops during execution?** | The chunk transaction rolls back. The error is classified as transient, so the job backs off exponentially with jitter and retries, then completes. A dead connection is discarded, not reused. | `worker.test.ts`: connection killed mid-chunk (`pg_terminate_backend`) |
+| **…an error keeps happening?** | Transient errors retry up to 5 times; permanent errors fail at once. Either way the job ends `failed` with a `failureReason` and **never stays stuck**. `POST /v1/bulk-moves/:id/retry` resumes it from its cursor once the cause is fixed. | `worker.test.ts`: permanent failure + resume |
+| **…a job exceeds the 50,000 limit?** | `422` before anything is written (counted with `LIMIT 50001`, re-checked on the snapshot itself). | `submit-idempotency.test.ts` |
+| **…a queue loses a job?** | There is no separate queue to lose it: the job row *is* the queue. It commits in the same transaction as the `202` response's data, and claiming is a query, not a message. A job whose worker vanished has an expired lease and is reclaimed; one with no progress shows `health: stalled`. | kill and resume; progress `health` |
+| **…many customers submit large jobs at once?** | Round-robin time slices (2 s) across workspaces, plus a per-workspace token bucket. No job can hold a worker while another workspace waits. Interactive latency stays at baseline. | `worker.test.ts`: isolation; BENCHMARKS.md §2 |
+| **…is the job genuinely complete?** | `completed` is set only when `cursor = total`, in the same fenced transaction as the last chunk. A CHECK guarantees `moved + skipped_conflict + skipped_noop = cursor`, and every item has an outcome. **`percent` is never 100 before that.** | verify SQL in every worker test and benchmark |
+
 ## Endpoints
 
 All endpoints take `X-Workspace-Id: <uuid>` (tenant scope; not authentication).
@@ -97,7 +118,7 @@ All endpoints take `X-Workspace-Id: <uuid>` (tenant scope; not authentication).
 | `POST` | `/v1/opportunities` | Create a deal |
 | `PATCH` | `/v1/opportunities/:id/stage` | Move one deal (records a transition, bumps `stageRev`) |
 | `GET` | `/v1/stages/:stageId/opportunities?limit&cursor` | List a stage (keyset pagination) |
-| `POST` | `/v1/bulk-moves` | Submit a bulk move. Requires `Idempotency-Key`. `202` new / `200` replay / `422` mismatch or >50k |
+| `POST` | `/v1/bulk-moves` | Submit a bulk move. `Idempotency-Key` recommended. `202` new / `200` replay / `422` key reused with another body, or >50k |
 | `GET` | `/v1/bulk-moves/:jobId` | Progress: `status`, `processed`, `percent`, counts, `health` |
 | `GET` | `/v1/bulk-moves/:jobId/items?outcome=` | Per-deal outcomes, e.g. which ones were skipped as conflicts |
 | `POST` | `/v1/bulk-moves/:jobId/retry` | Resume a **failed** job from its committed progress. `202` re-queued / `200` already running / `422` already completed |
@@ -134,7 +155,9 @@ All endpoints take `X-Workspace-Id: <uuid>` (tenant scope; not authentication).
   moved; deals a human moves in the meantime are skipped as conflicts (DESIGN.md §3–4).
 - Money is integer cents. Status values are `open | won | lost | abandoned`.
 - `createdFrom` is inclusive and `createdTo` is exclusive.
-- `Idempotency-Key` is required on submit. A missing key returns `400` rather than guessing.
+- `Idempotency-Key` is recommended. Without it, an identical request (same workspace and canonical
+  body) is treated as a retry while the earlier job is queued or processing, or was created in the
+  last 10 minutes. After that, the same body counts as a new, intentional move.
 
 ## Project layout
 

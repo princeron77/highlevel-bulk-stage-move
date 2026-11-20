@@ -156,5 +156,15 @@ vite.config.ts.timestamp-*
 .nx/workspace-data
 .nx/migrate-runs
 
+# Private working notes and the brief (never published)
+.private/
+
+# Benchmark scratch files
+bench/results/*.tmp
+
+# OS / editor
+.DS_Store
+.idea/
+
 # Local AI assistant commands (personal workflow, not part of the project)
 .claude/

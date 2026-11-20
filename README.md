@@ -57,7 +57,7 @@ The tests run against a real Postgres. Each test file creates and drops its own 
 The safety tests were checked by deleting each mechanism. Removing the fence, the `stage_rev`
 check or the request-hash check turns the matching test red.
 
-Without Docker (Node 22 and a local Postgres):
+Without Docker (Node 22+ and a local Postgres; `.nvmrc` pins 22 to match the Docker image, Node 24 also works):
 ```bash
 npm ci && npm run build
 TEST_DATABASE_URL=postgres://app:app@localhost:5432/postgres npm test

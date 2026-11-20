@@ -29,15 +29,19 @@ docker compose up --build
 ```
 
 This starts Postgres, runs the migrations, seeds **5 small workspaces** (3,000 deals each),
-then starts the **API** on `:3000` and **2 workers**.
+starts the **API** on `:3000` and **2 workers**, and **runs the whole test suite once**. Look for
+`test-1 | ℹ pass 20` in the output. The test container then exits; the rest of the stack keeps running.
 
 - Swagger UI: <http://localhost:3000/docs>
 - Health: <http://localhost:3000/health>
 
 ## Run the tests
 
+They already run as part of `docker compose up`. To run only the tests, with a proper exit code
+(for example in CI):
+
 ```bash
-docker compose --profile test run --rm --build test
+docker compose run --rm --build test
 ```
 
 The tests run against a real Postgres. Each test file creates and drops its own database.
@@ -45,7 +49,7 @@ The tests run against a real Postgres. Each test file creates and drops its own 
 | Test file | What it proves |
 |---|---|
 | `test/submit-idempotency.test.ts` | Replay → same job, `200`. 10 concurrent duplicates → 1 job. Different body → `422`. >50k → `422` with nothing written. Dedupe survives a restart. Tenant scoping. |
-| `test/worker.test.ts` | **Kill and resume** (a real worker process exits mid-job holding its lease). **Collision** (a manual edit wins). **Fencing** (a zombie worker can't write). **Isolation** (workspace B finishes while A's big job runs). Transient retry. Permanent failure. |
+| `test/worker.test.ts` | **Kill and resume** (a real worker process exits mid-job holding its lease). **Collision** (a manual edit wins). **Fencing** (a zombie worker can't write). **Isolation** (workspace B finishes while A's big job runs). Transient retry. Permanent failure, then a manual resume that completes. |
 | `test/opportunities.http.test.ts` | Part 1: create, manual move with transition, keyset paging, tenant scoping, error shape. |
 
 The safety tests were checked by deleting each mechanism. Removing the fence, the `stage_rev`
@@ -96,6 +100,7 @@ All endpoints take `X-Workspace-Id: <uuid>` (tenant scope; not authentication).
 | `POST` | `/v1/bulk-moves` | Submit a bulk move. Requires `Idempotency-Key`. `202` new / `200` replay / `422` mismatch or >50k |
 | `GET` | `/v1/bulk-moves/:jobId` | Progress: `status`, `processed`, `percent`, counts, `health` |
 | `GET` | `/v1/bulk-moves/:jobId/items?outcome=` | Per-deal outcomes, e.g. which ones were skipped as conflicts |
+| `POST` | `/v1/bulk-moves/:jobId/retry` | Resume a **failed** job from its committed progress. `202` re-queued / `200` already running / `422` already completed |
 | `GET` | `/health` | Liveness and database check |
 
 ## What is implemented
@@ -108,6 +113,8 @@ All endpoints take `X-Workspace-Id: <uuid>` (tenant scope; not authentication).
   (`running`, `throttled`, `waiting`, `retrying`, `stalled`, `done`, `failed`).
 - **Retries:** transient database errors back off exponentially with jitter, up to 5 attempts.
   Permanent errors fail the job with a reason. A worker that dies holding a lease counts as an attempt.
+  A failed job can be resumed with `POST /v1/bulk-moves/:id/retry`. It continues from its cursor,
+  so nothing already applied is redone.
 - **Graceful shutdown:** on SIGTERM a worker finishes its current chunk and hands the job back.
 
 ## What is not implemented

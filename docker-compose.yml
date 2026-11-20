@@ -1,6 +1,7 @@
 # One command: `docker compose up --build`
 #   postgres -> init (migrate + seed small) -> api (http://localhost:3000/docs) + 2 workers
-# Tests:       `docker compose --profile test run --rm --build test`
+#   -> test (runs the full test suite once, prints results, exits; the stack keeps running)
+# Tests only, with an exit code (e.g. for CI): `docker compose run --rm --build test`
 x-db-env: &db-env
   DATABASE_URL: postgres://app:app@postgres:5432/opportunities
 
@@ -59,9 +60,9 @@ services:
     stop_grace_period: 15s
     restart: unless-stopped
 
-  # Runs the test suite against the same Postgres (each test file creates its own database).
+  # Runs the test suite once against the same Postgres (each test file creates and drops its
+  # own database, so seeded data is untouched), then exits. The rest of the stack keeps running.
   test:
-    profiles: ["test"]
     build: { context: ., target: build }
     command: ["npm", "test"]
     environment:
@@ -70,6 +71,7 @@ services:
       LOG_LEVEL: silent
     depends_on:
       postgres: { condition: service_healthy }
+    restart: "no"
 
 volumes:
   pgdata:

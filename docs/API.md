@@ -93,3 +93,13 @@ curl -s "localhost:3000/v1/bulk-moves/<jobId>/items?outcome=skipped_conflict&lim
 ```
 `outcome` is one of `moved`, `skipped_conflict`, `skipped_noop` or `pending`. Page with
 `?afterSeq=<nextAfterSeq>`.
+
+## Resume a failed job
+```bash
+curl -s -XPOST localhost:3000/v1/bulk-moves/<jobId>/retry $H
+```
+| Job state | Response |
+|---|---|
+| `failed` | `202`: re-queued. It continues from `processed`; nothing already applied is redone. |
+| `queued` / `processing` | `200`: nothing changed. Safe to call twice. |
+| `completed` | `422` |

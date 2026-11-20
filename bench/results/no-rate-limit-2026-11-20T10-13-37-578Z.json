@@ -1,0 +1,271 @@
+{
+  "mode": "uninterrupted",
+  "when": "2026-11-20T10:13:37.578Z",
+  "hardware": {
+    "platform": "linux 6.18.44-fc-v726 x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 2,
+    "memoryGb": 8
+  },
+  "job": {
+    "jobId": "b5da3821-3c6f-4067-bacb-dc6e4f299e85",
+    "status": "completed",
+    "total": 50000,
+    "submitMs": 516,
+    "wallClockSeconds": 8.3,
+    "sustainedRowsPerSecond": 6665,
+    "killedAtProcessed": null,
+    "secondsFromKillToCompletion": null,
+    "secondsWorkersWereDown": null
+  },
+  "interactiveBaseline": {
+    "same workspace (large, 500k)": {
+      "read": {
+        "requests": 4287,
+        "errors": 0,
+        "rps": 286,
+        "p50": 6.1,
+        "p95": 14,
+        "p99": 22.5,
+        "max": 61.6
+      },
+      "write": {
+        "requests": 1730,
+        "errors": 0,
+        "rps": 115,
+        "p50": 15.9,
+        "p95": 30.6,
+        "p99": 46.3,
+        "max": 75.3
+      }
+    },
+    "other workspace (small)": {
+      "read": {
+        "requests": 4267,
+        "errors": 0,
+        "rps": 284,
+        "p50": 6.1,
+        "p95": 14.1,
+        "p99": 22.1,
+        "max": 60.8
+      },
+      "write": {
+        "requests": 1740,
+        "errors": 0,
+        "rps": 116,
+        "p50": 15.9,
+        "p95": 31,
+        "p99": 43.6,
+        "max": 91.6
+      }
+    }
+  },
+  "interactiveDuringBulk": {
+    "same workspace (large, 500k)": {
+      "read": {
+        "requests": 2004,
+        "errors": 0,
+        "rps": 242,
+        "p50": 7.4,
+        "p95": 14.8,
+        "p99": 24.3,
+        "max": 53
+      },
+      "write": {
+        "requests": 744,
+        "errors": 0,
+        "rps": 90,
+        "p50": 20.8,
+        "p95": 35.5,
+        "p99": 52.1,
+        "max": 73.8
+      }
+    },
+    "other workspace (small)": {
+      "read": {
+        "requests": 2023,
+        "errors": 0,
+        "rps": 244,
+        "p50": 7.4,
+        "p95": 14.4,
+        "p99": 23.8,
+        "max": 40.2
+      },
+      "write": {
+        "requests": 750,
+        "errors": 0,
+        "rps": 91,
+        "p50": 20.8,
+        "p95": 35.1,
+        "p99": 52.8,
+        "max": 70.7
+      }
+    }
+  },
+  "verification": {
+    "status": "completed",
+    "total": 50000,
+    "cursor": 50000,
+    "moved": 49994,
+    "skipped_conflict": 6,
+    "skipped_noop": 0,
+    "items_without_outcome": 0,
+    "moved_but_not_in_target": 0,
+    "conflicts_without_manual_edit": 0,
+    "bulk_transitions": 49994,
+    "opportunities_moved_twice": 0,
+    "correct": true
+  },
+  "timeline": [
+    {
+      "s": 0.8,
+      "processed": 1000,
+      "health": "running"
+    },
+    {
+      "s": 1,
+      "processed": 3000,
+      "health": "running"
+    },
+    {
+      "s": 1.3,
+      "processed": 4500,
+      "health": "running"
+    },
+    {
+      "s": 1.6,
+      "processed": 6500,
+      "health": "running"
+    },
+    {
+      "s": 1.8,
+      "processed": 8000,
+      "health": "running"
+    },
+    {
+      "s": 2.1,
+      "processed": 10000,
+      "health": "running"
+    },
+    {
+      "s": 2.3,
+      "processed": 12000,
+      "health": "running"
+    },
+    {
+      "s": 2.6,
+      "processed": 13500,
+      "health": "running"
+    },
+    {
+      "s": 2.8,
+      "processed": 15000,
+      "health": "running"
+    },
+    {
+      "s": 3.1,
+      "processed": 16000,
+      "health": "running"
+    },
+    {
+      "s": 3.4,
+      "processed": 17500,
+      "health": "running"
+    },
+    {
+      "s": 3.6,
+      "processed": 19500,
+      "health": "running"
+    },
+    {
+      "s": 3.9,
+      "processed": 21500,
+      "health": "running"
+    },
+    {
+      "s": 4.1,
+      "processed": 23500,
+      "health": "running"
+    },
+    {
+      "s": 4.4,
+      "processed": 25000,
+      "health": "running"
+    },
+    {
+      "s": 4.7,
+      "processed": 27000,
+      "health": "running"
+    },
+    {
+      "s": 4.9,
+      "processed": 28500,
+      "health": "running"
+    },
+    {
+      "s": 5.2,
+      "processed": 30000,
+      "health": "running"
+    },
+    {
+      "s": 5.5,
+      "processed": 31500,
+      "health": "running"
+    },
+    {
+      "s": 5.7,
+      "processed": 32500,
+      "health": "running"
+    },
+    {
+      "s": 6,
+      "processed": 34000,
+      "health": "running"
+    },
+    {
+      "s": 6.2,
+      "processed": 36000,
+      "health": "running"
+    },
+    {
+      "s": 6.5,
+      "processed": 38000,
+      "health": "running"
+    },
+    {
+      "s": 6.7,
+      "processed": 40000,
+      "health": "running"
+    },
+    {
+      "s": 7,
+      "processed": 41500,
+      "health": "running"
+    },
+    {
+      "s": 7.3,
+      "processed": 43000,
+      "health": "running"
+    },
+    {
+      "s": 7.5,
+      "processed": 45000,
+      "health": "running"
+    },
+    {
+      "s": 7.8,
+      "processed": 46500,
+      "health": "running"
+    },
+    {
+      "s": 8,
+      "processed": 48500,
+      "health": "running"
+    },
+    {
+      "s": 8.3,
+      "processed": 50000,
+      "health": "done"
+    }
+  ]
+}

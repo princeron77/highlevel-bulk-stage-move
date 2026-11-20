@@ -31,6 +31,12 @@ export async function withTx<T>(
   options: TxOptions = {},
 ): Promise<T> {
   const client = await pool.connect();
+  // why: if the connection dies while checked out (Postgres restart, network drop, a killed
+  // backend), pg emits 'error' on this client. With no listener that is an uncaught exception
+  // that kills the whole process; with one, the failure surfaces as a rejected query below.
+  const onError = (): void => undefined;
+  client.on('error', onError);
+  let broken = false;
   try {
     await client.query('BEGIN');
     if (options.lockTimeoutMs !== undefined) {
@@ -45,10 +51,14 @@ export async function withTx<T>(
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
+    // If even ROLLBACK fails, the connection is dead: destroy it instead of returning it to the pool.
+    await client.query('ROLLBACK').catch(() => {
+      broken = true;
+    });
     throw error;
   } finally {
-    client.release();
+    client.off('error', onError);
+    client.release(broken);
   }
 }
 

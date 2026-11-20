@@ -88,6 +88,12 @@ describe('Part 1: opportunities API', () => {
       .expect(404);
   });
 
+  it('a forged pagination cursor is a 400, not a 500', async () => {
+    const forged = Buffer.from(JSON.stringify({ createdAt: '2025-01-01T00:00:00.000000Z', id: "x' OR 1=1" })).toString('base64url');
+    const res = await http().get(`/v1/stages/${stages[0]}/opportunities`).query({ cursor: forged }).set('X-Workspace-Id', WS_A).expect(400);
+    assert.match(res.body.message, /cursor/);
+  });
+
   it('rejects bad input with one error shape', async () => {
     const res = await http()
       .post('/v1/opportunities')

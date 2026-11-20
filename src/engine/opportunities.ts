@@ -20,12 +20,18 @@ export interface CreateOpportunityInput {
   stageId: string;
 }
 
-async function assertStageInWorkspace(db: Pool | Client, workspaceId: string, stageId: string): Promise<void> {
+/** 404 unless the stage exists in this workspace (stages are tenant-scoped like everything else). */
+export async function assertStageInWorkspace(
+  db: Pool | Client,
+  workspaceId: string,
+  stageId: string,
+  what = 'Stage',
+): Promise<void> {
   const found = await db.query('SELECT 1 FROM stages WHERE workspace_id = $1 AND id = $2', [
     workspaceId,
     stageId,
   ]);
-  if (found.rowCount === 0) throw notFound('Stage');
+  if (found.rowCount === 0) throw notFound(what);
 }
 
 export async function createOpportunity(
@@ -107,6 +113,8 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface CursorPosition {
   createdAt: string; // microsecond-precision UTC timestamp, exactly as Postgres stores it
   id: string;
@@ -119,8 +127,10 @@ function encodeCursor(position: CursorPosition): string {
 function decodeCursor(cursor: string): CursorPosition {
   try {
     const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as CursorPosition;
+    // why: the cursor comes from the client, so treat it as untrusted. A forged value must be
+    // a 400 here, not a 500 from a failed ::timestamptz / ::uuid cast in the query.
     if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') throw new Error();
-    if (Number.isNaN(Date.parse(parsed.createdAt))) throw new Error();
+    if (Number.isNaN(Date.parse(parsed.createdAt)) || !UUID_RE.test(parsed.id)) throw new Error();
     return parsed;
   } catch {
     throw new DomainError('invalid', 'cursor is not valid');

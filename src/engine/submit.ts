@@ -5,7 +5,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { MAX_BULK_SIZE } from '../config.js';
 import { withTx, type Client, type Pool } from '../db/pool.js';
-import { DomainError, notFound } from './errors.js';
+import { DomainError } from './errors.js';
+import { assertStageInWorkspace } from './opportunities.js';
 import { filterToSql, normalizeFilter, type BulkFilter } from './filter.js';
 
 export interface SubmitInput {
@@ -119,11 +120,7 @@ async function createJobWithSnapshot(
   filter: BulkFilter,
   hash: string,
 ): Promise<void> {
-  const stage = await client.query('SELECT 1 FROM stages WHERE workspace_id = $1 AND id = $2', [
-    workspaceId,
-    targetStageId,
-  ]);
-  if (stage.rowCount === 0) throw notFound('Target stage');
+  await assertStageInWorkspace(client, workspaceId, targetStageId, 'Target stage');
 
   // Cheap pre-check: stop counting at 50,001, so an oversized request costs one bounded
   // index scan and writes nothing.

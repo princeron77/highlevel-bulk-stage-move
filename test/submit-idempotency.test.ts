@@ -135,6 +135,20 @@ describe('POST /v1/bulk-moves idempotency', () => {
     assert.equal(await jobsFor(WS_A), before + 1);
   });
 
+  it('adversarial filter values are a 400, not a 500', async () => {
+    await submit('key-huge', { targetStageId: stages[2], filter: { minValueCents: 1e300 } }).expect(400);
+    await submit('key-badid', { targetStageId: stages[2], filter: { stageId: 'not-a-uuid' } }).expect(400);
+    await submit('key-extra', { targetStageId: stages[2], filter: {}, sql: 'DROP TABLE x' }).expect(400);
+  });
+
+  it('an empty match is a valid job that reports 0% until it completes, never 100% early', async () => {
+    const res = await submit('key-empty', { targetStageId: stages[2], filter: { ownerId: 'nobody' } }).expect(202);
+    const p = await request(app.getHttpServer()).get(res.body.progressUrl).set('X-Workspace-Id', WS_A).expect(200);
+    assert.equal(p.body.total, 0);
+    assert.equal(p.body.status, 'queued');
+    assert.equal(p.body.percent, 0);
+  });
+
   it('rejects an empty Idempotency-Key and the same source/target stage with 400', async () => {
     await request(app.getHttpServer())
       .post('/v1/bulk-moves')

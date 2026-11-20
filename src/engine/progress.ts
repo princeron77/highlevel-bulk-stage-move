@@ -107,7 +107,9 @@ export async function getProgress(
     filter: row.filter,
     total: row.total,
     processed: row.cursor,
-    percent: row.total === 0 ? 100 : Math.floor((row.cursor / row.total) * 1000) / 10,
+    // why: floor (never round up) and 100 only when completed, so a job can never show 100%
+    // while any item is unprocessed - not even an empty job that is still queued.
+    percent: row.status === 'completed' ? 100 : row.total === 0 ? 0 : Math.floor((row.cursor / row.total) * 1000) / 10,
     counts: {
       moved: row.moved,
       skippedConflict: row.skipped_conflict,

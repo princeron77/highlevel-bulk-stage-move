@@ -1,3 +1,8 @@
+/**
+ * Request/response shapes for bulk moves. Limits here are the first line of defence against
+ * adversarial input: unknown fields, non-UUID ids, absurd numbers and bad dates are rejected
+ * with a 400 before any SQL runs. Filter semantics are documented on each field.
+ */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -26,10 +31,10 @@ export class BulkFilterDto {
   @IsOptional() @IsIn(OPPORTUNITY_STATUSES) status?: OpportunityStatus;
 
   @ApiPropertyOptional({ description: 'Inclusive, in cents.' })
-  @IsOptional() @IsInt() @Min(0) minValueCents?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1e15) minValueCents?: number;
 
   @ApiPropertyOptional({ description: 'Inclusive, in cents.' })
-  @IsOptional() @IsInt() @Min(0) maxValueCents?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1e15) maxValueCents?: number;
 
   @ApiPropertyOptional({ format: 'date-time', description: 'created_at >= createdFrom' })
   @IsOptional() @IsISO8601({ strict: true }) createdFrom?: string;

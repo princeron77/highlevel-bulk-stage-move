@@ -21,7 +21,7 @@ The author must be able to defend every line in a review. Optimise for code that
   exhaustive validation.
 
 ## Stack
-- Node 22 LTS, TypeScript `strict`, NestJS (latest stable), PostgreSQL 16.
+- Node 24 LTS, TypeScript `strict`, NestJS (latest stable), PostgreSQL 16.
 - `pg` driver with raw parameterised SQL. No ORM. Every hot-path query should be readable on its own.
 - `class-validator` DTOs with a global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`).
 - `@nestjs/swagger` decorators on every endpoint and DTO. Swagger UI is served at `/docs`.

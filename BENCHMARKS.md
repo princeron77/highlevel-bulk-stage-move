@@ -10,7 +10,7 @@ are in [`bench/results/`](bench/results). Re-run them with the commands at the e
 |---|---|
 | Reference run | Linux VM, **2 vCPU** (Intel Xeon @ 2.10 GHz), 8 GB RAM |
 | Placement | Postgres 16, API, both workers **and** the load generator on the same 2 vCPUs |
-| Node | 22 |
+| Node | 22 (reference run); the project now targets Node 24 |
 | Settings | defaults: chunk 500, slice 2 s, lease 15 s, token bucket 2,000 rows/s (burst 4,000) per workspace |
 
 Everything shares two cores, so these are conservative. *Laptop numbers: to be added from

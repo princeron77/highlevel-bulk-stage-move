@@ -51,21 +51,33 @@ export async function applyChunk(
   fromSeq: number,
   toSeq: number,
 ): Promise<ChunkCounts> {
-  // why: FOR UPDATE OF o locks the chunk's rows in id order (seq follows id order). A manual
-  // move waits for this short transaction, or this waits for it (lock_timeout bounds both).
-  const { rows } = await client.query<LockedItem>(
-    `SELECT i.seq, i.opportunity_id, i.snapshot_stage_id, i.snapshot_stage_rev,
-            o.stage_id AS current_stage_id, o.stage_rev AS current_stage_rev
-     FROM bulk_job_items i
-     JOIN opportunities o ON o.id = i.opportunity_id AND o.workspace_id = $2
-     WHERE i.job_id = $1 AND i.seq > $3 AND i.seq <= $4
-     ORDER BY i.seq
-     FOR UPDATE OF o`,
-    [job.id, job.workspaceId, fromSeq, toSeq],
+  // Step 1: the chunk's snapshot items, by primary key (job_id, seq): always an index range scan.
+  const items = await client.query<{ seq: number; opportunity_id: string; snapshot_stage_id: string; snapshot_stage_rev: string }>(
+    `SELECT seq, opportunity_id, snapshot_stage_id, snapshot_stage_rev
+     FROM bulk_job_items WHERE job_id = $1 AND seq > $2 AND seq <= $3 ORDER BY seq`,
+    [job.id, fromSeq, toSeq],
   );
-  if (rows.length !== toSeq - fromSeq) {
-    throw new Error(`Chunk ${fromSeq}-${toSeq} of job ${job.id} found ${rows.length} rows`);
+  // Step 2: lock exactly those opportunities by primary key, in id order.
+  // why: two simple primary-key lookups instead of one join, so the plan never depends on
+  // table statistics. A freshly inserted 50k snapshot has none until autoanalyze runs, and a
+  // join could then fall back to scanning the whole opportunities table on every chunk.
+  // FOR UPDATE: a manual move waits for this short transaction, or this waits for it
+  // (lock_timeout bounds both).
+  const locked = await client.query<{ id: string; stage_id: string; stage_rev: string }>(
+    `SELECT id, stage_id, stage_rev FROM opportunities
+     WHERE workspace_id = $1 AND id = ANY($2::uuid[])
+     ORDER BY id
+     FOR UPDATE`,
+    [job.workspaceId, items.rows.map((r) => r.opportunity_id)],
+  );
+  if (items.rows.length !== toSeq - fromSeq || locked.rows.length !== items.rows.length) {
+    throw new Error(`Chunk ${fromSeq}-${toSeq} of job ${job.id} found ${items.rows.length} items, ${locked.rows.length} rows`);
   }
+  const current = new Map(locked.rows.map((r) => [r.id, r]));
+  const rows: LockedItem[] = items.rows.map((item) => {
+    const row = current.get(item.opportunity_id)!;
+    return { ...item, current_stage_id: row.stage_id, current_stage_rev: row.stage_rev };
+  });
 
   const outcomes = rows.map((item) => classify(item, job.targetStageId));
   const toMove = rows.filter((_, i) => outcomes[i] === 'moved');
@@ -86,11 +98,13 @@ export async function applyChunk(
     );
   }
 
+  // why: a primary-key range (job_id, seq) plus an array lookup by position. No join, so no
+  // plan choice: the same fast index scan whether or not the snapshot has statistics yet.
+  // outcomes[k] belongs to seq fromSeq + 1 + k (items are contiguous and in seq order).
   const marked = await client.query(
-    `UPDATE bulk_job_items i SET outcome = v.outcome
-     FROM unnest($2::int[], $3::text[]) AS v(seq, outcome)
-     WHERE i.job_id = $1 AND i.seq = v.seq AND i.outcome IS NULL`,
-    [job.id, rows.map((r) => r.seq), outcomes],
+    `UPDATE bulk_job_items SET outcome = ($4::text[])[seq - $2]
+     WHERE job_id = $1 AND seq > $2 AND seq <= $3 AND outcome IS NULL`,
+    [job.id, fromSeq, toSeq, outcomes],
   );
   if (marked.rowCount !== rows.length) {
     throw new Error(`Chunk ${fromSeq}-${toSeq} of job ${job.id} was already processed`);

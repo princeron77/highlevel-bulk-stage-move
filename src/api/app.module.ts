@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseModule } from './database.module.js';
 import { HealthController } from './health.controller.js';
 import { OpportunitiesController } from './opportunities/opportunities.controller.js';
+import { BulkMovesController } from './bulk-moves/bulk-moves.controller.js';
 
 @Module({
   imports: [
@@ -18,6 +19,6 @@ import { OpportunitiesController } from './opportunities/opportunities.controlle
     }),
     DatabaseModule,
   ],
-  controllers: [HealthController, OpportunitiesController],
+  controllers: [HealthController, OpportunitiesController, BulkMovesController],
 })
 export class AppModule {}

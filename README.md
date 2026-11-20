@@ -16,6 +16,7 @@ Move up to **50,000 deals** between pipeline stages in one action, as a backgrou
 | Document | What's in it |
 |---|---|
 | [DESIGN.md](DESIGN.md) | Chunking and cursor, idempotency, concurrency, snapshot vs live, isolation, 10×, next steps |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagrams: components, database schema (ER), job state machine, sequence diagrams for submit, chunk, crash recovery and collisions; every index and lock explained |
 | [BENCHMARKS.md](BENCHMARKS.md) | 50k move, p95/p99 during the move, kill and resume, hardware, method |
 | [docs/API.md](docs/API.md) | Every endpoint with a curl example |
 | `http://localhost:3000/docs` | Swagger UI (OpenAPI), generated from the code |
@@ -30,7 +31,7 @@ docker compose up --build
 
 This starts Postgres, runs the migrations, seeds **5 small workspaces** (3,000 deals each),
 starts the **API** on `:3000` and **2 workers**, and **runs the whole test suite once**. Look for
-`test-1 | ℹ pass 20` in the output. The test container then exits; the rest of the stack keeps running.
+`test-1 | ℹ pass 23` in the output. The test container then exits; the rest of the stack keeps running.
 
 - Swagger UI: <http://localhost:3000/docs>
 - Health: <http://localhost:3000/health>

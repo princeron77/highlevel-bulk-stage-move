@@ -4,6 +4,7 @@ A user picks a filter and moves up to 50,000 opportunities to another stage. The
 at once with a job id; workers do the moving in the background. **Postgres is the only state:**
 the job table is the queue, the progress, the lease and the idempotency store. No worker keeps
 anything in memory that matters, so any process can die at any moment.
+Schema (ER) diagram, job state machine and sequence diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```mermaid
 flowchart LR
@@ -24,10 +25,14 @@ A worker processes one **chunk** (500 items) per transaction:
 1. `SELECT … FROM bulk_jobs WHERE id = $1 AND lease_version = $fence FOR UPDATE`. The fence
    check: if another worker has claimed the job since, this matches nothing and we stop.
 2. Take tokens from the workspace's bucket (§5).
-3. Lock the chunk's opportunities: `bulk_job_items` with `seq IN (cursor, cursor+500]`, joined
-   to `opportunities … FOR UPDATE OF o`, in id order.
+3. Read the chunk's items by primary key (`job_id = $1 AND seq > cursor AND seq <= cursor+500`),
+   then lock exactly those opportunities by id (`WHERE id = ANY(…) ORDER BY id FOR UPDATE`).
+   These are two primary-key lookups rather than one join, on purpose: a freshly inserted 50k
+   snapshot has no statistics yet, and a join plan could then scan the whole table on every
+   chunk. We measured that: 2.5 s per chunk before the change, 79 ms after.
 4. Apply the collision rule (§3). Then, set-based: one `UPDATE` moves the unchanged rows, one
-   `INSERT` writes their transitions, one `UPDATE` records every item's outcome.
+   `INSERT` writes their transitions, and one primary-key range `UPDATE` records every item's
+   outcome.
 5. Advance `cursor` and the counters, and set `completed` if `cursor = total`, still fenced.
 
 All of that is **one commit**. So the cursor can never get ahead of the work, or fall behind it.

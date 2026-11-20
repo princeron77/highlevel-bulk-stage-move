@@ -1,0 +1,571 @@
+{
+  "mode": "uninterrupted",
+  "when": "2026-11-20T10:11:16.725Z",
+  "hardware": {
+    "platform": "linux 6.18.44-fc-v726 x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 2,
+    "memoryGb": 8
+  },
+  "job": {
+    "jobId": "a786792d-7be0-4542-9c41-410571743601",
+    "status": "completed",
+    "total": 50000,
+    "submitMs": 760,
+    "wallClockSeconds": 23.9,
+    "sustainedRowsPerSecond": 2184,
+    "killedAtProcessed": null,
+    "secondsFromKillToCompletion": null,
+    "secondsWorkersWereDown": null
+  },
+  "interactiveBaseline": {
+    "same workspace (large, 500k)": {
+      "read": {
+        "requests": 4263,
+        "errors": 0,
+        "rps": 284,
+        "p50": 6.2,
+        "p95": 13.8,
+        "p99": 21.1,
+        "max": 69.3
+      },
+      "write": {
+        "requests": 1710,
+        "errors": 0,
+        "rps": 114,
+        "p50": 16.3,
+        "p95": 30.9,
+        "p99": 44.9,
+        "max": 83.7
+      }
+    },
+    "other workspace (small)": {
+      "read": {
+        "requests": 4266,
+        "errors": 0,
+        "rps": 284,
+        "p50": 6.2,
+        "p95": 13.8,
+        "p99": 21.5,
+        "max": 46
+      },
+      "write": {
+        "requests": 1715,
+        "errors": 0,
+        "rps": 114,
+        "p50": 16.2,
+        "p95": 30.3,
+        "p99": 46.6,
+        "max": 76
+      }
+    }
+  },
+  "interactiveDuringBulk": {
+    "same workspace (large, 500k)": {
+      "read": {
+        "requests": 6687,
+        "errors": 0,
+        "rps": 280,
+        "p50": 6.3,
+        "p95": 13.6,
+        "p99": 21,
+        "max": 44.1
+      },
+      "write": {
+        "requests": 2565,
+        "errors": 0,
+        "rps": 107,
+        "p50": 17.3,
+        "p95": 33.2,
+        "p99": 48,
+        "max": 72.8
+      }
+    },
+    "other workspace (small)": {
+      "read": {
+        "requests": 6671,
+        "errors": 0,
+        "rps": 279,
+        "p50": 6.3,
+        "p95": 13.5,
+        "p99": 21.7,
+        "max": 46
+      },
+      "write": {
+        "requests": 2562,
+        "errors": 0,
+        "rps": 107,
+        "p50": 17.1,
+        "p95": 32.3,
+        "p99": 50.8,
+        "max": 70.4
+      }
+    }
+  },
+  "verification": {
+    "status": "completed",
+    "total": 50000,
+    "cursor": 50000,
+    "moved": 49980,
+    "skipped_conflict": 19,
+    "skipped_noop": 1,
+    "items_without_outcome": 0,
+    "moved_but_not_in_target": 0,
+    "conflicts_without_manual_edit": 0,
+    "bulk_transitions": 49980,
+    "opportunities_moved_twice": 0,
+    "correct": true
+  },
+  "timeline": [
+    {
+      "s": 1,
+      "processed": 1000,
+      "health": "running"
+    },
+    {
+      "s": 1.3,
+      "processed": 2500,
+      "health": "running"
+    },
+    {
+      "s": 1.5,
+      "processed": 4500,
+      "health": "running"
+    },
+    {
+      "s": 1.8,
+      "processed": 5500,
+      "health": "waiting"
+    },
+    {
+      "s": 2.1,
+      "processed": 6000,
+      "health": "waiting"
+    },
+    {
+      "s": 2.3,
+      "processed": 6500,
+      "health": "running"
+    },
+    {
+      "s": 2.6,
+      "processed": 7000,
+      "health": "waiting"
+    },
+    {
+      "s": 2.8,
+      "processed": 7500,
+      "health": "waiting"
+    },
+    {
+      "s": 3.1,
+      "processed": 8000,
+      "health": "running"
+    },
+    {
+      "s": 3.4,
+      "processed": 8500,
+      "health": "waiting"
+    },
+    {
+      "s": 3.6,
+      "processed": 9000,
+      "health": "waiting"
+    },
+    {
+      "s": 3.9,
+      "processed": 9500,
+      "health": "running"
+    },
+    {
+      "s": 4.1,
+      "processed": 10000,
+      "health": "waiting"
+    },
+    {
+      "s": 4.4,
+      "processed": 10500,
+      "health": "waiting"
+    },
+    {
+      "s": 4.6,
+      "processed": 11000,
+      "health": "running"
+    },
+    {
+      "s": 4.9,
+      "processed": 11500,
+      "health": "running"
+    },
+    {
+      "s": 5.1,
+      "processed": 12000,
+      "health": "waiting"
+    },
+    {
+      "s": 5.4,
+      "processed": 12500,
+      "health": "waiting"
+    },
+    {
+      "s": 5.7,
+      "processed": 13000,
+      "health": "waiting"
+    },
+    {
+      "s": 5.9,
+      "processed": 13500,
+      "health": "running"
+    },
+    {
+      "s": 6.2,
+      "processed": 14000,
+      "health": "waiting"
+    },
+    {
+      "s": 6.4,
+      "processed": 15000,
+      "health": "throttled"
+    },
+    {
+      "s": 6.7,
+      "processed": 15000,
+      "health": "running"
+    },
+    {
+      "s": 6.9,
+      "processed": 15500,
+      "health": "waiting"
+    },
+    {
+      "s": 7.2,
+      "processed": 16500,
+      "health": "throttled"
+    },
+    {
+      "s": 7.5,
+      "processed": 16500,
+      "health": "running"
+    },
+    {
+      "s": 7.7,
+      "processed": 17000,
+      "health": "waiting"
+    },
+    {
+      "s": 8,
+      "processed": 18000,
+      "health": "throttled"
+    },
+    {
+      "s": 8.2,
+      "processed": 18500,
+      "health": "throttled"
+    },
+    {
+      "s": 8.5,
+      "processed": 18500,
+      "health": "running"
+    },
+    {
+      "s": 8.7,
+      "processed": 19500,
+      "health": "throttled"
+    },
+    {
+      "s": 9,
+      "processed": 20000,
+      "health": "throttled"
+    },
+    {
+      "s": 9.3,
+      "processed": 20000,
+      "health": "waiting"
+    },
+    {
+      "s": 9.5,
+      "processed": 21000,
+      "health": "throttled"
+    },
+    {
+      "s": 9.8,
+      "processed": 21500,
+      "health": "throttled"
+    },
+    {
+      "s": 10,
+      "processed": 21500,
+      "health": "running"
+    },
+    {
+      "s": 10.3,
+      "processed": 22500,
+      "health": "throttled"
+    },
+    {
+      "s": 10.5,
+      "processed": 22500,
+      "health": "running"
+    },
+    {
+      "s": 10.8,
+      "processed": 23500,
+      "health": "waiting"
+    },
+    {
+      "s": 11.1,
+      "processed": 23500,
+      "health": "running"
+    },
+    {
+      "s": 11.3,
+      "processed": 24500,
+      "health": "waiting"
+    },
+    {
+      "s": 11.6,
+      "processed": 25000,
+      "health": "waiting"
+    },
+    {
+      "s": 11.8,
+      "processed": 25500,
+      "health": "running"
+    },
+    {
+      "s": 12.1,
+      "processed": 26000,
+      "health": "waiting"
+    },
+    {
+      "s": 12.4,
+      "processed": 26500,
+      "health": "running"
+    },
+    {
+      "s": 12.6,
+      "processed": 27000,
+      "health": "waiting"
+    },
+    {
+      "s": 12.9,
+      "processed": 27500,
+      "health": "running"
+    },
+    {
+      "s": 13.1,
+      "processed": 28000,
+      "health": "waiting"
+    },
+    {
+      "s": 13.4,
+      "processed": 28500,
+      "health": "waiting"
+    },
+    {
+      "s": 13.6,
+      "processed": 29000,
+      "health": "running"
+    },
+    {
+      "s": 13.9,
+      "processed": 29500,
+      "health": "waiting"
+    },
+    {
+      "s": 14.2,
+      "processed": 30500,
+      "health": "throttled"
+    },
+    {
+      "s": 14.4,
+      "processed": 31000,
+      "health": "throttled"
+    },
+    {
+      "s": 14.7,
+      "processed": 31000,
+      "health": "running"
+    },
+    {
+      "s": 14.9,
+      "processed": 31500,
+      "health": "running"
+    },
+    {
+      "s": 15.2,
+      "processed": 32000,
+      "health": "waiting"
+    },
+    {
+      "s": 15.4,
+      "processed": 33000,
+      "health": "throttled"
+    },
+    {
+      "s": 15.7,
+      "processed": 33000,
+      "health": "running"
+    },
+    {
+      "s": 16,
+      "processed": 33500,
+      "health": "waiting"
+    },
+    {
+      "s": 16.2,
+      "processed": 34500,
+      "health": "throttled"
+    },
+    {
+      "s": 16.5,
+      "processed": 34500,
+      "health": "running"
+    },
+    {
+      "s": 16.7,
+      "processed": 35000,
+      "health": "waiting"
+    },
+    {
+      "s": 17,
+      "processed": 36000,
+      "health": "throttled"
+    },
+    {
+      "s": 17.2,
+      "processed": 36000,
+      "health": "running"
+    },
+    {
+      "s": 17.5,
+      "processed": 36500,
+      "health": "waiting"
+    },
+    {
+      "s": 17.8,
+      "processed": 37500,
+      "health": "throttled"
+    },
+    {
+      "s": 18,
+      "processed": 37500,
+      "health": "running"
+    },
+    {
+      "s": 18.3,
+      "processed": 38500,
+      "health": "throttled"
+    },
+    {
+      "s": 18.5,
+      "processed": 39000,
+      "health": "throttled"
+    },
+    {
+      "s": 18.8,
+      "processed": 39500,
+      "health": "throttled"
+    },
+    {
+      "s": 19,
+      "processed": 39500,
+      "health": "running"
+    },
+    {
+      "s": 19.3,
+      "processed": 40500,
+      "health": "waiting"
+    },
+    {
+      "s": 19.5,
+      "processed": 41000,
+      "health": "waiting"
+    },
+    {
+      "s": 19.8,
+      "processed": 41000,
+      "health": "running"
+    },
+    {
+      "s": 20.1,
+      "processed": 42000,
+      "health": "running"
+    },
+    {
+      "s": 20.3,
+      "processed": 42500,
+      "health": "waiting"
+    },
+    {
+      "s": 20.6,
+      "processed": 43000,
+      "health": "waiting"
+    },
+    {
+      "s": 20.8,
+      "processed": 43500,
+      "health": "waiting"
+    },
+    {
+      "s": 21.1,
+      "processed": 44000,
+      "health": "running"
+    },
+    {
+      "s": 21.3,
+      "processed": 44500,
+      "health": "waiting"
+    },
+    {
+      "s": 21.6,
+      "processed": 45000,
+      "health": "running"
+    },
+    {
+      "s": 21.9,
+      "processed": 45500,
+      "health": "running"
+    },
+    {
+      "s": 22.1,
+      "processed": 46000,
+      "health": "waiting"
+    },
+    {
+      "s": 22.4,
+      "processed": 46500,
+      "health": "waiting"
+    },
+    {
+      "s": 22.6,
+      "processed": 47500,
+      "health": "throttled"
+    },
+    {
+      "s": 22.9,
+      "processed": 47500,
+      "health": "running"
+    },
+    {
+      "s": 23.1,
+      "processed": 48000,
+      "health": "waiting"
+    },
+    {
+      "s": 23.4,
+      "processed": 48500,
+      "health": "running"
+    },
+    {
+      "s": 23.7,
+      "processed": 49000,
+      "health": "waiting"
+    },
+    {
+      "s": 23.9,
+      "processed": 50000,
+      "health": "done"
+    }
+  ]
+}

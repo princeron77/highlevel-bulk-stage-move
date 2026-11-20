@@ -15,7 +15,9 @@
     "db:seed:small": "node dist/scripts/seed.js small",
     "db:seed:large": "node dist/scripts/seed.js large",
     "test": "node --test --test-concurrency=1 --test-reporter=spec \"dist/test/**/*.test.js\"",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "bench": "node dist/bench/run.js",
+    "bench:kill": "node dist/bench/run.js --kill"
   },
   "dependencies": {
     "@nestjs/common": "^12.5.1",

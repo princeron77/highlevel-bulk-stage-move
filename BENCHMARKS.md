@@ -1,126 +1,129 @@
 # BENCHMARKS
 
-Measured with `bench/run.ts` against a running stack: API, **2 workers** and Postgres 16, with
-the large seed (500,000 opportunities in one workspace, plus 5 small workspaces). Raw outputs
-are in [`bench/results/`](bench/results). Re-run them with the commands at the end.
+Measured with `bench/run.ts` against the running stack (API, **2 workers**, Postgres 16, all in
+Docker Desktop), with the large seed: 500,000 opportunities in one workspace, plus 5 small
+workspaces. Raw results are in [`bench/results/`](bench/results). Re-run them with the commands
+at the end.
 
 ## Hardware
 
 | | |
 |---|---|
-| Reference run | Linux VM, **2 vCPU** (Intel Xeon @ 2.10 GHz), 8 GB RAM |
-| Placement | Postgres 16, API, both workers **and** the load generator on the same 2 vCPUs |
-| Node | 22 (reference run); the project now targets Node 24 |
-| Settings | defaults: chunk 500, slice 2 s, lease 15 s, token bucket 2,000 rows/s (burst 4,000) per workspace |
-
-Everything shares two cores, so these are conservative. *Laptop numbers: to be added from
-`npm run bench` on an Apple M-series machine.*
+| Machine | **MacBook Pro, Apple M3 Pro (11 cores), 18 GB RAM**, macOS 26 |
+| Placement | Postgres, API, both workers **and** the load generator on the same laptop (Docker Desktop) |
+| Software | Node 24, PostgreSQL 16, NestJS 12 |
+| Settings | defaults: chunk 500 rows, 2 s time slice, 15 s lease, token bucket **2,000 rows/s per workspace** (burst 4,000) |
 
 ## 1. Bulk move of 50,000
 
-| Run | Wall-clock (submit → completed) | Sustained throughput | Submit request |
-|---|---:|---:|---:|
-| Default (rate limit 2,000 rows/s) | **23.9 s** | **2,184 rows/s** | 760 ms |
-| Rate limit disabled (for comparison) | 8.3 s | 6,665 rows/s | 516 ms |
+| | Result |
+|---|---:|
+| Wall-clock, submit → `completed` | **23.9 s** |
+| Sustained throughput | **2,161 rows/s** |
+| Submit request (validate, count, write the 50,000-row snapshot) | 236 ms |
 
-- **The default is deliberately capped by the workspace's token bucket.** That cap is the
-  isolation mechanism doing its job. With the cap removed, the same 2 workers move about
-  6,700 rows/s on this machine.
-- **Submit** includes validating the filter, counting with `LIMIT 50001`, and writing the
-  50,000-row snapshot, all in one transaction.
+- **The throughput is set by the workspace's rate limit (2,000 rows/s + burst), not by the
+  machine.** That limit is the isolation mechanism. With it switched off, the same 2 workers ran
+  about 3× faster even on a 2-vCPU VM (see [Reference run](#reference-run-2-vcpu-linux-vm)), but
+  took 14–22% of everyone's interactive throughput.
 - **Sustained throughput** = rows ÷ time from the first committed chunk to completion.
 
 ## 2. Interactive requests during the bulk run
 
-Closed-loop load for the whole run:
-- **Same workspace:** 2 clients listing a stage (`GET /v1/stages/:id/opportunities?limit=20`)
-  and 2 clients making manual stage moves (`PATCH /v1/opportunities/:id/stage`).
-- **Different workspace:** the same mix.
-- **Baseline:** 15 s of the same load with no bulk job running, measured right before.
+Closed-loop load for the whole run, per workspace: 2 clients **listing a stage**
+(`GET /v1/stages/:id/opportunities?limit=20`) and 2 clients making **manual stage moves**
+(`PATCH /v1/opportunities/:id/stage`). The **baseline** is the same load for 15 s with no bulk
+job, measured right before.
 
-Latency in ms. Errors were **0** in every row.
+Latency in ms. **Errors: 0** in every row (about 150,000 requests in this run).
 
-**Default settings (rate limit on), uninterrupted run:**
-
-| Workspace | Request | Baseline p95 / p99 | During bulk p95 / p99 | Throughput (req/s) baseline → during |
+| Workspace | Request | Baseline p95 / p99 | **During bulk p95 / p99** | Throughput (req/s) baseline → during |
 |---|---|---:|---:|---:|
-| Same (large, 500k) | read  | 13.8 / 21.1 | 13.6 / 21.0 | 284 → 280 |
-| Same (large, 500k) | write | 30.9 / 44.9 | 33.2 / 48.0 | 114 → 107 |
-| Other (small)      | read  | 13.8 / 21.5 | 13.5 / 21.7 | 284 → 279 |
-| Other (small)      | write | 30.3 / 46.6 | 32.3 / 50.8 | 114 → 107 |
-
-**Rate limit disabled (what the limiter protects):**
-
-| Workspace | Request | Baseline p95 / p99 | During bulk p95 / p99 | Throughput (req/s) baseline → during |
-|---|---|---:|---:|---:|
-| Same (large, 500k) | read  | 14.0 / 22.5 | 14.8 / 24.3 | 286 → 242 (−15%) |
-| Same (large, 500k) | write | 30.6 / 46.3 | 35.5 / 52.1 | 115 → 90 (−22%) |
-| Other (small)      | read  | 14.1 / 22.1 | 14.4 / 23.8 | 284 → 244 (−14%) |
-| Other (small)      | write | 31.0 / 43.6 | 35.1 / 52.8 | 116 → 91 (−22%) |
+| Same (large, 500k) | read  | 1.9 / 3.0 | **2.3 / 4.5** | 1,441 → 1,324 |
+| Same (large, 500k) | write | 4.3 / 6.8 | **5.6 / 10.1** | 642 → 570 |
+| Other (small)      | read  | 1.8 / 2.9 | **2.3 / 4.4** | 1,440 → 1,325 |
+| Other (small)      | write | 4.2 / 6.6 | **5.5 / 9.9** | 645 → 573 |
 
 **Reading it:**
-- **With the limiter on,** interactive latency in both workspaces stays within noise of the
-  baseline, and interactive throughput drops by 1–6%.
-- **With the limiter off,** the job finishes 3× faster, but takes 14–22% of interactive
-  throughput from *every* workspace. On a 2-core box they all share the same CPU and disk.
-  That is the trade-off the per-workspace rate encodes.
-- **Same vs other workspace look alike.** Row-level locking keeps the bulk job out of
-  interactive requests' way; the remaining cost is shared CPU/IO, which hits all tenants equally.
-  Those are the numbers that would grow first on shared hardware (DESIGN.md §5, "the hole").
+- While 50,000 deals move, interactive p99 stays **under 5 ms for reads and about 10 ms for
+  writes**. The job adds 1–4 ms to the tail and costs 8–11% of interactive throughput.
+- **Same workspace and other workspace are indistinguishable.** Row locks are short and
+  per-chunk, so the bulk job doesn't get in a tenant's own way. The remaining cost is shared
+  CPU, and it is spread evenly. On this laptop the load generator, Postgres, the API and both
+  workers all compete for the same cores, so this is a conservative number. This shared-resource
+  cost is the "hole" named in DESIGN.md §5.
+- **Real collisions under load:** after submit, the same-workspace writers also move a sample
+  of the job's own deals by hand. **152 were skipped as conflicts and every one of them had a
+  later manual edit**, which the verification query checks. The manual-edit-wins rule held at
+  full speed.
 
 ## 3. Kill and resume
 
-Both workers were killed with `SIGKILL` once the job reached 30,000 committed rows, then
-restarted 1 s later (`bench/run.ts --kill`).
+Both workers were killed with `SIGKILL` at 30,000 committed rows and restarted with
+`docker compose start worker` (`bench/run.ts --kill`). The same interactive load ran the whole time.
 
-| Metric | Result |
+| | Result |
 |---|---:|
-| Killed at | 30,000 / 49,999 committed |
-| Workers down | 1.0 s |
-| Kill → completed | **10.0 s** |
-| Total wall-clock | 23.9 s |
+| Killed at | **30,000 / 50,000** committed |
+| Workers down | 2.3 s |
+| Kill → `completed` | **10.4 s** |
+| Total wall-clock | 24.8 s |
+| Interactive p99 during the run | ≤ 4.6 ms reads, ≤ 9.7 ms writes, **0 errors** |
 
-**Proof the result is correct.** This SQL is run by the benchmark; the counts come from that run:
+**Proof the result is correct** (SQL run by the benchmark, values from this run):
 
 | Check | Value |
 |---|---:|
-| Items without an outcome | 0 |
-| `moved` deals not in the target stage (excluding deals a human moved again afterwards) | 0 |
-| `skipped_conflict` items with no manual edit after submit | 0 |
-| Bulk transitions = `moved` | 49,968 = 49,968 |
-| Deals with more than one bulk transition | 0 |
-| `moved + skipped_conflict + skipped_noop = total` | 49,968 + 29 + 2 = 49,999 ✔ |
+| Items without an outcome | **0** |
+| `moved` deals not in the target stage (excluding deals a human moved again afterwards) | **0** |
+| `skipped_conflict` items without a manual edit after submit | **0** |
+| Bulk transitions = `moved` | 49,834 = 49,834 |
+| Deals with more than one bulk transition | **0** |
+| `moved + skipped_conflict + skipped_noop = total` | 49,834 + 150 + 16 = **50,000** ✔ |
 
-- **Real collisions.** The 29 `skipped_conflict` rows are deals the concurrent manual-move clients
-  touched after submit, so the collision rule was exercised under load, not just in a test. The
-  uninterrupted run had 19.
-- **Why recovery is fast here.** The kill landed while the job was between time slices, so no
-  lease had to expire. **Worst case:** if a worker dies holding the lease, the job waits up to the
-  lease time (15 s) before another worker reclaims it. The deterministic version of this is the
-  `kill and resume` test, which exits a real worker process after its 3rd chunk while holding
-  the lease.
-- **Total is 49,999, not 50,000.** The filter selects the 50,000 newest deals of the biggest
-  stage, but one of them was moved by the load clients before submit.
+- **Why recovery was fast.** The kill landed while the job was between time slices (its
+  timeline shows `waiting` at 30,000), so no lease had to expire. The job resumed as soon as the
+  workers were back. **Worst case:** a worker dies while holding the lease, and the job waits
+  up to the lease time (15 s) before another worker reclaims it. The `kill and resume` test
+  covers exactly that case: a real worker process exits after its 3rd chunk while holding the lease.
+- **Max latency during this run was 74–139 ms**, versus 45–78 ms uninterrupted, from two
+  containers restarting on the same laptop. p95 and p99 were unaffected.
 
 ## Method
 
 - **Filter:** the 50,000 newest opportunities of the large workspace's currently biggest stage,
-  into its currently smallest stage. That way the benchmark re-runs on the same data.
-- **Clients:** closed loop, so each client sends its next request when the previous one returns.
-  4 clients per workspace: 2 readers and 2 writers. Manual-move targets are random rows of
-  that workspace.
+  moved into its currently smallest stage. That way the benchmark re-runs on the same data.
+- **Load:** closed loop, so each client sends its next request when the previous one returns.
+  Manual moves never target the job's source stage, so the load can't change the 50k match
+  between computing the filter and submitting.
 - **Percentiles:** over successful requests; errors are counted separately (there were none).
-- **Progress:** polled every 250 ms from `GET /v1/bulk-moves/:id`. The full timeline (processed,
-  health) is in each JSON file.
+- **Progress:** polled every 250 ms. Each JSON file has the full timeline (processed, health).
+- **Kill:** issued with an async child process, so the benchmark's own clients keep running and
+  measuring during the kill.
+
+## Reference run (2-vCPU Linux VM)
+
+The same benchmark on a much smaller machine (2 vCPU Intel Xeon @ 2.1 GHz, 8 GB, Node 22,
+everything on the same 2 cores), plus one run **with the rate limit switched off** to show what
+the limiter protects. Files: [`bench/results/vm-reference/`](bench/results/vm-reference).
+
+| Run | 50k wall-clock | Throughput | Interactive throughput, during vs baseline |
+|---|---:|---:|---:|
+| Rate limit on (default) | 23.9 s | 2,184 rows/s | −1% to −6% |
+| **Rate limit off** | 8.3 s | 6,665 rows/s | **−14% to −22%** |
+
+So the job could run about 3× faster, but it would take that capacity from every tenant on the
+database. The per-workspace rate is the knob that trades one job's speed against everyone
+else's latency, and it's a per-workspace column, so it can be set per plan.
 
 ## Reproduce
 
 ```bash
-docker compose up -d --build                         # postgres, api, 2 workers
-docker compose run --rm init node dist/scripts/seed.js large   # adds the 500k workspace (~20 s)
+docker compose up -d --build                                   # postgres, api, 2 workers (+ tests)
+docker compose run --rm init node dist/scripts/seed.js large   # adds the 500k workspace (~8 s on an M3)
 npm ci && npm run build
-npm run bench                                        # uninterrupted
-npm run bench:kill                                   # kill both workers at 30k, restart
+npm run bench                                                  # uninterrupted
+npm run bench:kill                                             # kill both workers at 30k, restart
 ```
 The defaults expect the API on `localhost:3000` and Postgres on `localhost:5432`.
 `KILL_CMD` and `START_CMD` override how workers are killed and restarted.

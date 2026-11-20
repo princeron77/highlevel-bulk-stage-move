@@ -132,7 +132,7 @@ it had then.
   - A deal that starts matching the filter after submit is **not** moved. The user must run
     another bulk move.
   - A deal that stops matching because a human moved it is skipped as a conflict, not dragged along.
-  - Submit costs one `INSERT … SELECT` of up to 50,000 rows inside the request (~0.5 s measured).
+  - Submit costs one `INSERT … SELECT` of up to 50,000 rows inside the request (~0.25 s measured on an M3 Pro).
   - The 50k cap is checked with a bounded count (`LIMIT 50001`), then confirmed on the snapshot
     insert itself, because rows can appear between the two under READ COMMITTED.
 
@@ -157,8 +157,8 @@ Four implemented mechanisms, each with a test or a benchmark:
    10 s. The worker has its own 4-connection pool, so it can never take the API's connections.
 
 **Measured** (BENCHMARKS.md): during a 50k move, list and manual-move p95/p99 in the same
-workspace and in another one stayed close to the no-bulk baseline (p95 within about 4 ms,
-p99 within about 17 ms), with 0 errors.
+workspace and in another one stayed within a few ms of the no-bulk baseline (p99 under 5 ms for
+reads and about 10 ms for writes on an M3 Pro), with 0 errors, and identical across the two workspaces.
 
 **The holes:**
 - **The database is shared.** The bucket limits each tenant, not the sum. 50 tenants bulk-moving

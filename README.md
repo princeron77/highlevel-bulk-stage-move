@@ -13,6 +13,19 @@ Move up to **50,000 deals** between pipeline stages in one action, as a backgrou
 **Stack:** NestJS 12 + TypeScript (strict) + PostgreSQL 16, with raw parameterised SQL through
 `pg`. No Redis, Kafka or BullMQ: Postgres is the queue (see [DESIGN.md](DESIGN.md)).
 
+## Results at a glance
+
+Measured on a MacBook Pro (M3 Pro), with the whole stack plus the load generator on one laptop.
+Details and method: [BENCHMARKS.md](BENCHMARKS.md).
+
+| | |
+|---|---|
+| Move 50,000 deals | **23.9 s**, about 2,160 rows/s (paced on purpose by the per-workspace rate limit) |
+| Interactive p99 during the move (same **and** other workspace) | **≤ 4.5 ms** reads, **≤ 10.1 ms** writes, **0 errors** |
+| Kill both workers at 30,000 → completed | **10.4 s**; 0 items lost, 0 deals moved twice |
+| Manual edits during the move | **152** deals a human moved were skipped (`skipped_conflict`), never overwritten |
+| Tests | **40**, against real Postgres; each safety test fails if its mechanism is removed |
+
 | Document | What's in it |
 |---|---|
 | [DESIGN.md](DESIGN.md) | Chunking and cursor, idempotency, concurrency, snapshot vs live, isolation, 10×, next steps |

@@ -31,7 +31,7 @@ docker compose up --build
 
 This starts Postgres, runs the migrations, seeds **5 small workspaces** (3,000 deals each),
 starts the **API** on `:3000` and **2 workers**, and **runs the whole test suite once**. Look for
-`test-1 | ℹ pass 39` in the output. The test container then exits; the rest of the stack keeps running.
+`test-1 | ℹ pass 40` in the output. The test container then exits; the rest of the stack keeps running.
 
 - Swagger UI: <http://localhost:3000/docs>
 - Health: <http://localhost:3000/health>
@@ -106,7 +106,7 @@ and the test that proves it.
 | **…the database connection drops during execution?** | The chunk transaction rolls back. The error is classified as transient, so the job backs off exponentially with jitter and retries, then completes. A dead connection is discarded, not reused. | `worker.test.ts`: connection killed mid-chunk (`pg_terminate_backend`) |
 | **…an error keeps happening?** | Transient errors retry up to 5 times; permanent errors fail at once. Either way the job ends `failed` with a `failureReason` and **never stays stuck**. `POST /v1/bulk-moves/:id/retry` resumes it from its cursor once the cause is fixed. | `worker.test.ts`: permanent failure + resume |
 | **…a job exceeds the 50,000 limit?** | `422` before anything is written (counted with `LIMIT 50001`, re-checked on the snapshot itself). | `submit-idempotency.test.ts` |
-| **…a queue loses a job?** | There is no separate queue to lose it: the job row *is* the queue. It commits in the same transaction as the `202` response's data, and claiming is a query, not a message. A job whose worker vanished has an expired lease and is reclaimed; one with no progress shows `health: stalled`. | kill and resume; progress `health` |
+| **…a queue loses a job?** | There is no separate queue to lose it: the job row *is* the queue. It commits in the same transaction as the `202` response's data, and claiming is a query, not a message. A job whose worker vanished has an expired lease and is reclaimed. If nothing reclaims it (no workers running), progress shows `health: stalled`. | kill and resume; progress `health` |
 | **…many customers submit large jobs at once?** | Round-robin time slices (2 s) across workspaces, plus a per-workspace token bucket. No job can hold a worker while another workspace waits. Interactive latency stays at baseline. | `worker.test.ts`: isolation; BENCHMARKS.md §2 |
 | **…the input is adversarial?** | Unknown fields, non-UUID ids, absurd numbers, bad dates and forged pagination cursors are rejected with `400` before any SQL runs. All values are bound parameters, never concatenated. A tenant can never address another tenant's rows (composite foreign keys plus `workspace_id` in every query). | `opportunities.http.test.ts`, `submit-idempotency.test.ts` |
 | **…a tenant's rate limit is smaller than one chunk?** | The token bucket lets a chunk through once the bucket is full and carries the balance as debt, so the job slows down but never stalls. | `worker.test.ts`: rate limit |

@@ -84,7 +84,7 @@ curl -s localhost:3000/v1/bulk-moves/<jobId> $H
 | `throttled` | Paused by the workspace's rate limit. Slow on purpose. |
 | `waiting` | Between time slices, waiting for its next turn. Normal under load. |
 | `retrying` | A transient error happened; it retries at `nextAttemptAt`. |
-| `stalled` | No live worker and no progress for 2× the lease time. Stuck. |
+| `stalled` | Stuck: a worker died holding the job and nobody has taken it over, or no progress for 5 minutes. A long queue is `waiting`, not `stalled`. |
 | `done` / `failed` | Finished. `failureReason` says why it failed. |
 
 ## Per-deal outcomes

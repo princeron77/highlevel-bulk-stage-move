@@ -56,7 +56,8 @@ counter sum is a CHECK constraint on the job row, so it holds at every commit, n
 30,000 moves already visible in the CRM. The rest are still in their old stage. Progress is read
 from the committed row, so it never jumps backwards or lies after a restart. `health` explains
 the pause: `running`, `throttled` (rate limit), `waiting` (between slices), `retrying` (backoff),
-`stalled` (no live worker and no progress for 2× the lease), or `failed` (with a reason).
+`stalled` (only on hard evidence: a worker died holding the lease and nobody took over, or no
+progress for 5 minutes), or `failed` (with a reason). A long queue shows `waiting`, never `stalled`.
 
 ## 2. Idempotency model
 
@@ -165,8 +166,6 @@ p99 within about 17 ms), with 0 errors.
   The next step is a global budget (a second bucket row) or worker concurrency per database shard.
 - **Submit is not rate limited.** Many simultaneous 50k submits each do a 50k-row insert in the
   API process.
-- **`stalled` can be wrong under a long queue.** A job waiting a long time for its next slice
-  can show `stalled` when it is only waiting.
 
 ## 6. What breaks at 10× (a 500,000-row move, 20M opportunities in the workspace)
 

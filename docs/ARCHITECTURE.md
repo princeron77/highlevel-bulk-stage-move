@@ -168,8 +168,8 @@ job in the same workspace from starting in a gap. Inside `processing`, the progr
 | `retrying` | attempts > 0 and next_attempt_at in the future | Transient error; retry scheduled |
 | `throttled` | throttled_until in the future | Paused by the workspace rate limit: slow on purpose |
 | `running` | lease_expires_at in the future | A worker is moving rows now |
-| `waiting` | none of the above, recent progress | Between slices: other workspaces are getting their turn |
-| `stalled` | no live lease and no progress for 2x the lease | Stuck: needs attention |
+| `waiting` | none of the above | Between slices: other workspaces are getting their turn (however long the queue) |
+| `stalled` | lease still owned but expired over 5 s ago (worker died, nobody took over), or no committed progress for 5 min | Stuck: needs attention |
 | `done` / `failed` | terminal status | Finished; `failureReason` explains a failure |
 
 Each snapshot item ends with exactly one outcome:

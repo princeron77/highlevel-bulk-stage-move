@@ -14,7 +14,15 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
-    "declaration": false
+    "declaration": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "bench/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "test/**/*.ts",
+    "bench/**/*.ts"
+  ]
 }

@@ -10,7 +10,8 @@
  * Env: BASE_URL (default http://localhost:3000), DATABASE_URL (default compose's),
  *      KILL_CMD / START_CMD (default: docker compose kill/start of the worker service).
  */
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { cpus, totalmem, platform, arch, release } from 'node:os';
 import { performance } from 'node:perf_hooks';
@@ -26,8 +27,18 @@ const KILL_CMD = process.env.KILL_CMD ?? 'docker compose kill -s SIGKILL worker'
 const START_CMD = process.env.START_CMD ?? 'docker compose start worker';
 const CLIENTS_PER_TARGET = 4;
 const OTHER_WS = SMALL_WORKSPACE_IDS[0]!;
+// why: async, never execSync. A blocking call would freeze this process's own load clients,
+// and the frozen time would be recorded as request latency (a measurement artifact).
+const sh = promisify(exec);
 
-interface Target { name: string; workspaceId: string; stageIds: string[]; opportunityIds: string[] }
+interface Target {
+  name: string;
+  workspaceId: string;
+  stageIds: string[];
+  /** Stages manual moves may target (never the bulk job's source stage, see loadTarget). */
+  moveTargets: string[];
+  opportunityIds: string[];
+}
 type Sample = { kind: 'read' | 'write'; ms: number; ok: boolean };
 
 async function api(path: string, ws: string, init: RequestInit = {}): Promise<Response> {
@@ -45,7 +56,12 @@ async function loadTarget(pool: Pool, name: string, workspaceId: string, exclude
     'SELECT id FROM opportunities WHERE workspace_id = $1 AND stage_id IS DISTINCT FROM $2::uuid ORDER BY random() LIMIT 2000',
     [workspaceId, excludeStage],
   );
-  return { name, workspaceId, stageIds: stages.rows.map((r) => r.id), opportunityIds: opps.rows.map((r) => r.id) };
+  const stageIds = stages.rows.map((r) => r.id);
+  // why: never move deals INTO the bulk job's source stage. Otherwise, in the milliseconds
+  // between computing the 50k filter and submitting, the load itself could push the match
+  // count to 50,001 and the (correct) 422 would abort the benchmark.
+  const moveTargets = stageIds.filter((id) => id !== excludeStage);
+  return { name, workspaceId, stageIds, moveTargets, opportunityIds: opps.rows.map((r) => r.id) };
 }
 
 /** Closed-loop clients: each sends its next request as soon as the previous one returns. */
@@ -60,7 +76,7 @@ function startLoad(target: Target, samples: Sample[], stop: AbortSignal): Promis
         const res = write
           ? await api(`/v1/opportunities/${pick(target.opportunityIds)}/stage`, target.workspaceId, {
               method: 'PATCH',
-              body: JSON.stringify({ stageId: pick(target.stageIds.slice(1)) }),
+              body: JSON.stringify({ stageId: pick(target.moveTargets) }),
             })
           : await api(`/v1/stages/${pick(target.stageIds)}/opportunities?limit=20`, target.workspaceId);
         await res.arrayBuffer();
@@ -173,8 +189,22 @@ async function main(): Promise<void> {
     body: JSON.stringify({ targetStageId: targetStage, filter }),
   });
   const submitMs = performance.now() - t0;
-  const { jobId } = (await res.json()) as { jobId: string };
+  const submitted = (await res.json()) as { jobId?: string; message?: unknown };
+  if (res.status !== 202 || !submitted.jobId) {
+    stop.abort();
+    await Promise.all(load);
+    throw new Error(`Submit failed with ${res.status}: ${JSON.stringify(submitted)}`);
+  }
+  const jobId = submitted.jobId;
   console.log(`Submitted ${jobId} (${res.status}) in ${Math.round(submitMs)} ms`);
+
+  // Deliberate collisions: the same-workspace writers now also move a sample of the job's own
+  // deals by hand while it runs, so the manual-edit-wins rule is exercised under load.
+  const jobDeals = await pool.query<{ opportunity_id: string }>(
+    'SELECT opportunity_id FROM bulk_job_items WHERE job_id = $1 ORDER BY random() LIMIT 200',
+    [jobId],
+  );
+  sameWs.opportunityIds.push(...jobDeals.rows.map((r) => r.opportunity_id));
 
   let firstProgressAt: number | null = null;
   let killedAt: number | null = null;
@@ -191,11 +221,11 @@ async function main(): Promise<void> {
     timeline.push({ s: Math.round((now - t0) / 100) / 10, processed, health: p.health });
     if (firstProgressAt === null && processed > 0) firstProgressAt = now;
     if (KILL && killedAt === null && processed >= KILL_AT) {
-      execSync(KILL_CMD, { stdio: 'inherit' });
+      await sh(KILL_CMD);
       killedAt = performance.now();
       console.log(`Killed workers at processed=${processed}`);
       await sleep(1000);
-      execSync(START_CMD, { stdio: 'inherit' });
+      await sh(START_CMD);
       restartedAt = performance.now();
     }
   }

@@ -23,8 +23,8 @@ describe('classify (the collision rule)', () => {
 });
 
 describe('computeHealth', () => {
-  const base = { status: 'processing' as const, lease_live: false, throttled: false, retry_pending: false, quiet_ms: 0 };
-  const h = (o: object) => computeHealth({ ...base, ...o } as Parameters<typeof computeHealth>[0], 15000);
+  const base = { status: 'processing' as const, lease_live: false, throttled: false, retry_pending: false, orphaned: false, quiet_ms: 0 };
+  const h = (o: object) => computeHealth({ ...base, ...o } as Parameters<typeof computeHealth>[0], 300_000);
   it('terminal and queued states', () => {
     assert.equal(h({ status: 'completed' }), 'done');
     assert.equal(h({ status: 'failed' }), 'failed');
@@ -34,8 +34,9 @@ describe('computeHealth', () => {
     assert.equal(h({ lease_live: true }), 'running');
     assert.equal(h({ throttled: true }), 'throttled');
     assert.equal(h({ retry_pending: true }), 'retrying');
-    assert.equal(h({ quiet_ms: 5000 }), 'waiting');
-    assert.equal(h({ quiet_ms: 31000 }), 'stalled', 'no lease and no progress for > 2x lease');
+    assert.equal(h({ quiet_ms: 60_000 }), 'waiting', 'a long queue is not a stall');
+    assert.equal(h({ orphaned: true }), 'stalled', 'a worker died holding the lease and nobody took over');
+    assert.equal(h({ quiet_ms: 301_000 }), 'stalled', 'no committed progress for 5 minutes');
   });
 });
 

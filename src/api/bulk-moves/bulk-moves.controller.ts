@@ -43,7 +43,7 @@ import { ItemsQueryDto, JobProgressDto, SubmitBulkMoveDto, SubmitBulkMoveRespons
 })
 @Controller('v1/bulk-moves')
 export class BulkMovesController {
-  private readonly leaseMs = workerConfig().leaseMs;
+  private readonly stallAfterMs = workerConfig().stallAfterMs;
 
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
@@ -90,7 +90,7 @@ export class BulkMovesController {
     @WorkspaceId() workspaceId: string,
     @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
   ): Promise<JobProgress> {
-    return getProgress(this.pool, workspaceId, jobId, this.leaseMs);
+    return getProgress(this.pool, workspaceId, jobId, this.stallAfterMs);
   }
 
   @Post(':jobId/retry')
@@ -112,7 +112,7 @@ export class BulkMovesController {
   ): Promise<JobProgress> {
     const result = await retryFailedJob(this.pool, workspaceId, jobId);
     res.status(result === 'requeued' ? 202 : 200);
-    return getProgress(this.pool, workspaceId, jobId, this.leaseMs);
+    return getProgress(this.pool, workspaceId, jobId, this.stallAfterMs);
   }
 
   @Get(':jobId/items')

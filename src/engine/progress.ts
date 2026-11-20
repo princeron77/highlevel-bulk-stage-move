@@ -12,9 +12,11 @@ export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
  * - queued     waiting for its first turn (another job in this workspace may be running)
  * - running    a worker holds a live lease and is moving rows
  * - throttled  a worker holds it but the workspace's rate limit is pausing it (slow, on purpose)
- * - waiting    between time slices, waiting for its next turn (normal under load)
+ * - waiting    between time slices, waiting for its next turn (normal, however long the queue)
  * - retrying   a transient error happened; it will retry at nextAttemptAt
- * - stalled    no live worker and no progress for over 2x the lease time (stuck: needs attention)
+ * - stalled    stuck, needs attention. Only reported on unambiguous evidence:
+ *                (a) a worker died holding the lease and no worker has taken the job over, or
+ *                (b) no chunk has committed for stallAfterMs (default 5 min), e.g. no workers at all.
  * - done / failed  finished
  */
 export type JobHealth = 'queued' | 'running' | 'throttled' | 'waiting' | 'retrying' | 'stalled' | 'done' | 'failed';
@@ -62,17 +64,21 @@ interface JobRow {
   lease_live: boolean;
   throttled: boolean;
   retry_pending: boolean;
+  orphaned: boolean;
   quiet_ms: number;
 }
 
-export function computeHealth(row: JobRow, leaseMs: number): JobHealth {
+export function computeHealth(row: JobRow, stallAfterMs: number): JobHealth {
   if (row.status === 'completed') return 'done';
   if (row.status === 'failed') return 'failed';
   if (row.status === 'queued') return 'queued';
   if (row.retry_pending) return 'retrying';
   if (row.throttled) return 'throttled';
   if (row.lease_live) return 'running';
-  return row.quiet_ms > 2 * leaseMs ? 'stalled' : 'waiting';
+  // why: a released lease plus a long queue is normal ('waiting'). Only an abandoned lease or a
+  // long time with zero committed progress is real evidence that nothing is working on the job.
+  if (row.orphaned || row.quiet_ms > stallAfterMs) return 'stalled';
+  return 'waiting';
 }
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
@@ -81,7 +87,7 @@ export async function getProgress(
   pool: Pool,
   workspaceId: string,
   jobId: string,
-  leaseMs: number,
+  stallAfterMs: number,
 ): Promise<JobProgress> {
   // why: time comparisons use the database clock, the same clock the worker writes with.
   const { rows } = await pool.query<JobRow>(
@@ -91,6 +97,9 @@ export async function getProgress(
             coalesce(lease_expires_at > now(), false)            AS lease_live,
             coalesce(throttled_until > now(), false)             AS throttled,
             (attempts > 0 AND next_attempt_at > now())           AS retry_pending,
+            -- the owner's lease ran out (with a 5 s grace) and nobody has reclaimed it
+            coalesce(lease_owner IS NOT NULL AND lease_expires_at < now() - interval '5 seconds', false)
+                                                                 AS orphaned,
             (extract(epoch FROM now() - coalesce(last_progress_at, started_at, created_at)) * 1000)::float8
                                                                  AS quiet_ms
      FROM bulk_jobs WHERE workspace_id = $1 AND id = $2`,
@@ -102,7 +111,7 @@ export async function getProgress(
   return {
     jobId: row.id,
     status: row.status,
-    health: computeHealth(row, leaseMs),
+    health: computeHealth(row, stallAfterMs),
     targetStageId: row.target_stage_id,
     filter: row.filter,
     total: row.total,

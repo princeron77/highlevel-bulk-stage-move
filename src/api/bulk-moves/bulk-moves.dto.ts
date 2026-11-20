@@ -89,7 +89,7 @@ export class JobProgressDto {
     enum: ['queued', 'running', 'throttled', 'waiting', 'retrying', 'stalled', 'done', 'failed'],
     description:
       'running/throttled/waiting = progressing (throttled and waiting are slow on purpose), ' +
-      'retrying = transient error with backoff, stalled = no live worker and no progress for 2x the lease (stuck), failed = gave up.',
+      'retrying = transient error with backoff, stalled = a worker died holding the job and nobody took it over, or no progress for 5 min (stuck), failed = gave up.',
   })
   health!: string;
   @ApiProperty({ format: 'uuid' }) targetStageId!: string;

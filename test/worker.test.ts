@@ -191,6 +191,23 @@ describe('bulk worker', () => {
     await verifyJob(db, jobId);
   });
 
+  it('health: waiting between slices is not a stall; an abandoned lease is', async () => {
+    const { jobId } = await submitBulkMove(db.pool, WS_B, 'w-health', { targetStageId: stagesB[9]!, filter: { status: 'won' } });
+    const w = worker(db, 'w-health', { chunkSize: 50, sliceMs: 0 });
+    await w.tick(); // one chunk, then the lease is released: an ordinary turn in the queue
+    await db.pool.query("UPDATE bulk_jobs SET last_progress_at = now() - interval '2 minutes' WHERE id = $1", [jobId]);
+    assert.equal((await getProgress(db.pool, WS_B, jobId, 300_000)).health, 'waiting', 'a long wait for a turn is not a stall');
+
+    // A worker claims it and dies: lease still owned, expired, nobody has taken over.
+    await db.pool.query(
+      "UPDATE bulk_jobs SET lease_owner = 'dead-worker', lease_expires_at = now() - interval '10 seconds' WHERE id = $1",
+      [jobId],
+    );
+    assert.equal((await getProgress(db.pool, WS_B, jobId, 300_000)).health, 'stalled');
+    assert.equal(await drain(worker(db, 'rescuer-2'), db, jobId), 'completed', 'and the stall resolves itself');
+    await verifyJob(db, jobId);
+  });
+
   it('kill and resume: SIGKILL-style exit mid-job, then another worker finishes it correctly', async () => {
     const { jobId } = await submitBulkMove(db.pool, WS_B, 'w-kill', { targetStageId: stagesB[10]!, filter: {} });
     // A real worker process that exits (code 137) right after its 3rd chunk commits,

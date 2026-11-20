@@ -34,6 +34,8 @@ export interface WorkerConfig {
   maxAttempts: number;
   backoffBaseMs: number;
   backoffMaxMs: number;
+  /** Progress reports `stalled` if a processing job commits nothing for this long. */
+  stallAfterMs: number;
   /** Test hook: exit the process right after this many chunks commit (0 = off). */
   crashAfterChunks: number;
 }
@@ -61,6 +63,7 @@ export function workerConfig(): WorkerConfig {
     maxAttempts: int('BULK_MAX_ATTEMPTS', 5),
     backoffBaseMs: int('BULK_BACKOFF_BASE_MS', 500),
     backoffMaxMs: int('BULK_BACKOFF_MAX_MS', 30000),
+    stallAfterMs: int('BULK_STALL_AFTER_MS', 300_000),
     crashAfterChunks: int('CRASH_AFTER_CHUNKS', 0),
   };
 }

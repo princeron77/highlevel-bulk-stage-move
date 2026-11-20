@@ -8,7 +8,7 @@ The assignment brief is kept locally in `.private/` (gitignored). Read it before
 The author must be able to defend every line in a review. Optimise for code that is
 **obviously correct and easy to explain**, not clever.
 
-## Hard rules (from the brief and the recruiter)
+## Hard rules
 - Retrying the same request must **never return 409**.
   - First submit: `202`. Same key and same body: `200` with the same `jobId`, including concurrent duplicates.
   - Same key with a different body: `422`.
@@ -115,14 +115,16 @@ so it can never take connections from the API.
   - `running`: lease is live and progress is recent.
   - `throttled`: lease is live but waiting on tokens.
   - `retrying`: `next_attempt_at` is in the future.
-  - `stalled`: no live lease and no progress for over 2× the lease time.
+  - `stalled`: only on hard evidence: the owner's lease expired >5 s ago with nobody taking over,
+    or no committed chunk for `BULK_STALL_AFTER_MS` (5 min). A long queue is `waiting`.
   - `done`, `failed`
 
 ## API (all routes need `X-Workspace-Id`, which comes from the header and never from the body)
 - `POST  /v1/opportunities`
 - `PATCH /v1/opportunities/:id/stage`
 - `GET   /v1/stages/:stageId/opportunities?limit&cursor` (keyset pagination on `(created_at, id)`)
-- `POST  /v1/bulk-moves` (requires `Idempotency-Key`)
+- `POST  /v1/bulk-moves` (`Idempotency-Key` recommended; without it, identical bodies are deduplicated)
+- `POST  /v1/bulk-moves/:jobId/retry` (resume a failed job from its cursor)
 - `GET   /v1/bulk-moves/:jobId`
 - `GET   /v1/bulk-moves/:jobId/items?outcome=` (should-have)
 - `GET   /health`

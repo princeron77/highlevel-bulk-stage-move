@@ -37,7 +37,7 @@ then starts the **API** on `:3000` and **2 workers**.
 ## Run the tests
 
 ```bash
-docker compose --profile test up --build --exit-code-from test
+docker compose --profile test run --rm --build test
 ```
 
 The tests run against a real Postgres. Each test file creates and drops its own database.

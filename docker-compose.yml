@@ -1,6 +1,6 @@
 # One command: `docker compose up --build`
 #   postgres -> init (migrate + seed small) -> api (http://localhost:3000/docs) + 2 workers
-# Tests:       `docker compose --profile test up --build --exit-code-from test`
+# Tests:       `docker compose --profile test run --rm --build test`
 x-db-env: &db-env
   DATABASE_URL: postgres://app:app@postgres:5432/opportunities
 

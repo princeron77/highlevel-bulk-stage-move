@@ -15,7 +15,7 @@ The author must be able to defend every line in a review. Optimise for code that
 - The job must resume after a crash, retry transient errors with backoff, and stay safe under concurrency.
 - Job status values are exactly `queued | processing | completed | failed`.
 - `docker compose up` on a clean machine migrates, seeds a small dataset, and starts the API and 2 workers.
-  `docker compose --profile test up --exit-code-from test` runs the tests.
+  `docker compose --profile test run --rm --build test` runs the tests (only Postgres + the test container).
 - **Out of scope, do not build:** UI, auth, board/summary views, per-stage counts or rollups,
   rich filtering/sorting, downstream events, CI/K8s, custom fields, contacts/notes/tasks,
   exhaustive validation.
